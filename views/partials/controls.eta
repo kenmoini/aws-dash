@@ -1,7 +1,9 @@
 <% const s = it.snapshot, fmt = it.fmt, limit = it.memory_limit_bytes; %>
 <% const MIB = 1024 * 1024; const overLimit = limit !== null && s.memory_load.active && s.memory_load.target_mib * MIB > limit; %>
-<section id="controls" class="card">
+<% const controlsTrigger = s.memory_load.phase === "allocating" ? "every 1s" : "every 5s [!document.activeElement || !document.activeElement.closest('#controls')]"; %>
+<section id="controls" class="card" hx-get="/partials/controls" hx-trigger="<%= controlsTrigger %>" hx-swap="outerHTML">
   <h2>Controls</h2>
+  <div id="control-error" class="error" hidden></div>
 <% if (!s.controls_enabled) { %>
   <p class="muted">Controls are disabled (CONTROLS_ENABLED=false).</p>
 <% } else { %>
@@ -32,6 +34,9 @@
     <div class="control">
       <h3>Memory load <span class="badge <%= s.memory_load.active ? "warn" : "ok" %>"><%= s.memory_load.active ? fmt.mib(s.memory_load.allocated_mib) + " " + s.memory_load.phase : "idle" %></span></h3>
       <p class="muted">Allocates and holds off-heap buffers. cgroup limit: <%= fmt.bytes(limit, "none") %>. Past the limit the kernel OOM-kills the container (exit 137).</p>
+<% if (s.memory_load.error !== null) { %>
+      <p class="error">Last memory load failed: <%= s.memory_load.error %></p>
+<% } %>
 <% if (s.memory_load.active) { %>
 <% if (overLimit) { %>
       <p class="warning">Target <%= fmt.mib(s.memory_load.target_mib) %> exceeds the cgroup limit — expect OOMKilled.</p>

@@ -6,6 +6,15 @@
   <title><%= it.title %> · aws-dash</title>
   <link rel="stylesheet" href="/public/css/site.css" />
   <script src="/public/js/htmx.min.js"></script>
+  <script>
+    document.addEventListener("htmx:responseError", (e) => {
+      const t = e.detail.xhr;
+      let msg = t.statusText;
+      try { msg = JSON.parse(t.responseText).detail ?? msg; } catch {}
+      const box = document.getElementById("control-error");
+      if (box) { box.textContent = t.status + ": " + msg; box.hidden = false; }
+    });
+  </script>
 </head>
 <body>
   <header class="topbar">

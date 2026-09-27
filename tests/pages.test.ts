@@ -48,6 +48,19 @@ describe("runtime page and partials", () => {
     const res = await app.inject({ url: "/partials/controls" });
     expect(res.body).toContain("Controls are disabled (CONTROLS_ENABLED=false)");
     expect(res.body).not.toContain("hx-post=");
+    expect(res.body).toContain('id="control-error"');
+  });
+
+  it("GET /partials/controls polls fast while a memory load is allocating, and slower (paused while typing) otherwise", async () => {
+    const { app, memory } = await testApp();
+    close = () => app.close();
+    const idle = await app.inject({ url: "/partials/controls" });
+    expect(idle.body).toContain('hx-trigger="every 5s [');
+    memory.start(2);
+    const allocating = await app.inject({ url: "/partials/controls" });
+    expect(allocating.body).toContain('hx-trigger="every 1s"');
+    await memory.settled();
+    memory.stop();
   });
 
   it("GET /api/runtime returns runtime info plus state as JSON", async () => {
