@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aws-dash
+  labels:
+    app: aws-dash
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aws-dash
+  template:
+    metadata:
+      labels:
+        app: aws-dash
+    spec:
+      serviceAccountName: aws-dash
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers: []
+      containers:
+        - name: aws-dash
+          image: ghcr.io/kenmoini/aws-dash:main
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: aws-dash-config
+            - secretRef:
+                name: aws-dash-credentials
+                optional: true
+          env:
+            - name: POD_NAME
+              valueFrom: {fieldRef: {fieldPath: metadata.name}}
+            - name: POD_NAMESPACE
+              valueFrom: {fieldRef: {fieldPath: metadata.namespace}}
+            - name: NODE_NAME
+              valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
+            - name: POD_IP
+              valueFrom: {fieldRef: {fieldPath: status.podIP}}
+            - name: SERVICE_ACCOUNT
+              valueFrom: {fieldRef: {fieldPath: spec.serviceAccountName}}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          livenessProbe:
+            httpGet: {path: /healthz/live, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /healthz/ready, port: http}
+            periodSeconds: 5
+            failureThreshold: 2
+          volumeMounts: []
+      volumes: []
