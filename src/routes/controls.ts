@@ -41,10 +41,13 @@ export function registerControlRoutes(app: FastifyInstance, deps: AppDeps): void
       const input = readInput(req);
       const enabled = enabledOr422(input, reply);
       if (enabled === undefined) return reply;
-      const workers = inputInt(input, "workers", 1, 1, 64);
-      if (workers === undefined) return unprocessable(reply, "'workers' must be an integer between 1 and 64");
-      if (enabled) deps.cpu.start(workers);
-      else await deps.cpu.stop();
+      if (enabled) {
+        const workers = inputInt(input, "workers", 1, 1, 64);
+        if (workers === undefined) return unprocessable(reply, "'workers' must be an integer between 1 and 64");
+        deps.cpu.start(workers);
+      } else {
+        await deps.cpu.stop();
+      }
       return respond(req, reply);
     });
 

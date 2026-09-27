@@ -66,11 +66,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const app = Fastify<Server, IncomingMessage, ServerResponse, FastifyBaseLogger>({
     loggerInstance: deps.logger,
     logController: new LogController({ disableRequestLogging: true }),
-    trustProxy: true,
   });
   await app.register(formbody);
   await app.register(fastifyStatic, { root: PUBLIC_DIR, prefix: "/public/" });
-  registerRendering(app, { eta: createRenderer(VIEWS_DIR, process.env["NODE_ENV"] === "production"), version: deps.version });
+  registerRendering(app, { eta: createRenderer(VIEWS_DIR, deps.env("NODE_ENV") === "production"), version: deps.version });
 
   app.setNotFoundHandler((req, reply) => reply.code(404).send(errorBody(`not found: ${req.method} ${req.url}`)));
   // Explicit FastifyError annotation: setErrorHandler's error param generic defaults
