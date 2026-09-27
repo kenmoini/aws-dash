@@ -72,10 +72,12 @@ export function registerControlRoutes(app: FastifyInstance, deps: AppDeps): void
       const code = inputInt(readInput(req), "exit_code", 1, 0, 255);
       if (code === undefined) return unprocessable(reply, "'exit_code' must be an integer between 0 and 255");
       setTimeout(() => {
-        void deps.cpu.stop().then(() => {
-          deps.memory.stop();
-          deps.exit(code);
-        });
+        void deps.cpu.stop()
+          .catch((err: unknown) => req.log.warn({ err }, "cpu load did not stop cleanly before crash"))
+          .then(() => {
+            deps.memory.stop();
+            deps.exit(code);
+          });
       }, deps.crashDelayMs);
       reply.code(202);
       return isHtmx(req)

@@ -115,4 +115,19 @@ describe("controls", () => {
     await sleep(60);
     expect(exit.codes).toEqual([1]);
   });
+
+  it("crash still exits when stopping the CPU load fails", async () => {
+    const { app, exit, cpu, memory } = await testApp();
+    close = () => app.close();
+    memory.start(1);
+    await memory.settled();
+    const original = cpu.stop.bind(cpu);
+    cpu.stop = async () => { throw new Error("terminate failed"); };
+    const res = await post(app, "/controls/crash", "exit_code=7");
+    expect(res.statusCode).toBe(202);
+    await sleep(60);
+    expect(exit.codes).toEqual([7]);
+    expect(memory.status().active).toBe(false);
+    cpu.stop = original;
+  });
 });
