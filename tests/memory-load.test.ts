@@ -7,7 +7,7 @@ const MIB = 1024 * 1024;
 describe("MemoryLoad", () => {
   it("is idle initially and reports process memory", () => {
     const s = new MemoryLoad().status();
-    expect(s).toMatchObject({ active: false, phase: "idle", target_mib: 0, allocated_mib: 0, started_at: null });
+    expect(s).toMatchObject({ active: false, phase: "idle", target_mib: 0, allocated_mib: 0, started_at: null, error: null });
     expect(s.rss_bytes).toBeGreaterThan(0);
     expect(typeof s.available_bytes === "number" || s.available_bytes === null).toBe(true);
   });
@@ -57,6 +57,16 @@ describe("MemoryLoad", () => {
     expect(load.start(2).active).toBe(true);
     await load.settled();
     expect(load.status().allocated_mib).toBe(2);
+    load.stop();
+  });
+
+  it("an allocation failure releases everything, returns to idle and reports the error", async () => {
+    const load = new MemoryLoad({ chunkMib: 1, yieldFn: async () => { throw new Error("boom"); } });
+    load.start(3);
+    await load.settled();
+    expect(load.status()).toMatchObject({ active: false, phase: "idle", allocated_mib: 0, target_mib: 0, started_at: null, error: "boom" });
+    expect(load.start(1).error).toBeNull();
+    await load.settled();
     load.stop();
   });
 });
