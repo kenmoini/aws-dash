@@ -1,0 +1,60 @@
+<% const s = it.snapshot, fmt = it.fmt, limit = it.memory_limit_bytes; %>
+<% const MIB = 1024 * 1024; const overLimit = limit !== null && s.memory_load.active && s.memory_load.target_mib * MIB > limit; %>
+<section id="controls" class="card">
+  <h2>Controls</h2>
+<% if (!s.controls_enabled) { %>
+  <p class="muted">Controls are disabled (CONTROLS_ENABLED=false).</p>
+<% } else { %>
+  <div class="controls-grid">
+    <div class="control">
+      <h3>Liveness <span class="badge <%= s.live ? "ok" : "bad" %>"><%= s.live ? "OK" : "FAILING" %></span></h3>
+      <p class="muted">When failing, /healthz/live returns 503; after 3 failed probes the kubelet restarts the container.</p>
+      <button hx-post="/controls/liveness" hx-vals='{"enabled":"<%= s.live ? "false" : "true" %>"}' hx-target="#controls" hx-swap="outerHTML"><%= s.live ? "Fail liveness" : "Restore liveness" %></button>
+    </div>
+    <div class="control">
+      <h3>Readiness <span class="badge <%= s.ready ? "ok" : "bad" %>"><%= s.ready ? "OK" : "FAILING" %></span></h3>
+      <p class="muted">When failing, /healthz/ready returns 503 and the pod is removed from the Service's endpoints.</p>
+      <button hx-post="/controls/readiness" hx-vals='{"enabled":"<%= s.ready ? "false" : "true" %>"}' hx-target="#controls" hx-swap="outerHTML"><%= s.ready ? "Fail readiness" : "Restore readiness" %></button>
+    </div>
+    <div class="control">
+      <h3>CPU load <span class="badge <%= s.cpu_load.active ? "warn" : "ok" %>"><%= s.cpu_load.active ? s.cpu_load.workers + " busy" : "idle" %></span></h3>
+      <p class="muted">Spins worker threads to drive CPU usage; watch it with kubectl top pod or an HPA.</p>
+<% if (s.cpu_load.active) { %>
+      <button hx-post="/controls/cpu" hx-vals='{"enabled":"false"}' hx-target="#controls" hx-swap="outerHTML">Stop</button>
+<% } else { %>
+      <form hx-post="/controls/cpu" hx-target="#controls" hx-swap="outerHTML">
+        <input type="hidden" name="enabled" value="true" />
+        <label>Workers <input type="number" name="workers" min="1" max="64" value="1" /></label>
+        <button type="submit">Start</button>
+      </form>
+<% } %>
+    </div>
+    <div class="control">
+      <h3>Memory load <span class="badge <%= s.memory_load.active ? "warn" : "ok" %>"><%= s.memory_load.active ? fmt.mib(s.memory_load.allocated_mib) + " " + s.memory_load.phase : "idle" %></span></h3>
+      <p class="muted">Allocates and holds off-heap buffers. cgroup limit: <%= fmt.bytes(limit, "none") %>. Past the limit the kernel OOM-kills the container (exit 137).</p>
+<% if (s.memory_load.active) { %>
+<% if (overLimit) { %>
+      <p class="warning">Target <%= fmt.mib(s.memory_load.target_mib) %> exceeds the cgroup limit — expect OOMKilled.</p>
+<% } %>
+      <div class="progress"><span style="width: <%= Math.min(100, Math.round(100 * s.memory_load.allocated_mib / Math.max(1, s.memory_load.target_mib))) %>%"></span></div>
+      <button hx-post="/controls/memory" hx-vals='{"enabled":"false"}' hx-target="#controls" hx-swap="outerHTML">Release</button>
+<% } else { %>
+      <form hx-post="/controls/memory" hx-target="#controls" hx-swap="outerHTML">
+        <input type="hidden" name="enabled" value="true" />
+        <label>MiB <input type="number" name="mib" min="1" value="256" /></label>
+        <button type="submit">Allocate</button>
+      </form>
+<% } %>
+    </div>
+    <div class="control">
+      <h3>Crash</h3>
+      <p class="muted">Exits the process with the given code; Kubernetes restarts it and the restart count goes up.</p>
+      <form hx-post="/controls/crash" hx-target="#crash-result" hx-confirm="Really exit the process?">
+        <label>Exit code <input type="number" name="exit_code" min="0" max="255" value="1" /></label>
+        <button type="submit" class="danger">Crash</button>
+      </form>
+      <div id="crash-result"></div>
+    </div>
+  </div>
+<% } %>
+</section>

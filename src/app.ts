@@ -1,5 +1,6 @@
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { createRequire } from "node:module";
+import fastifyStatic from "@fastify/static";
 import formbody from "@fastify/formbody";
 import Fastify, { LogController, type FastifyBaseLogger, type FastifyError, type FastifyInstance } from "fastify";
 import type { Logger } from "pino";
@@ -9,8 +10,12 @@ import { processEnv, type EnvLookup } from "./env.js";
 import { CpuLoad } from "./load/cpu-load.js";
 import { MemoryLoad } from "./load/memory-load.js";
 import { createLogger } from "./logging.js";
+import { PUBLIC_DIR, VIEWS_DIR } from "./paths.js";
 import { errorBody } from "./routes/errors.js";
 import { registerHealthRoutes } from "./routes/health.js";
+import { registerPageRoutes } from "./routes/pages.js";
+import { createRenderer, registerRendering } from "./routes/render.js";
+import { registerRuntimeRoutes } from "./routes/runtime.js";
 import { realExit, type ProcessExit } from "./state/process-exit.js";
 import { RuntimeState } from "./state/runtime-state.js";
 import { StateService } from "./state/state-service.js";
@@ -63,6 +68,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     trustProxy: true,
   });
   await app.register(formbody);
+  await app.register(fastifyStatic, { root: PUBLIC_DIR, prefix: "/public/" });
+  registerRendering(app, { eta: createRenderer(VIEWS_DIR, process.env["NODE_ENV"] === "production"), version: deps.version });
 
   app.setNotFoundHandler((req, reply) => reply.code(404).send(errorBody(`not found: ${req.method} ${req.url}`)));
   // Explicit FastifyError annotation: setErrorHandler's error param generic defaults
@@ -78,5 +85,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   });
 
   registerHealthRoutes(app, deps);
+  registerRuntimeRoutes(app, deps);
+  registerPageRoutes(app, deps);
   return app;
 }

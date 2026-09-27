@@ -1,0 +1,30 @@
+<% const info = it.info, state = it.state, fmt = it.fmt; %>
+<dl class="kv">
+  <dt>Probes</dt>
+  <dd>
+    <span class="badge <%= state.live ? "ok" : "bad" %>">live: <%= state.live ? "OK" : "FAILING" %></span>
+    <span class="badge <%= state.ready ? "ok" : "bad" %>">ready: <%= state.ready ? "OK" : "FAILING" %></span>
+    <span class="badge <%= state.cpu_load.active ? "warn" : "ok" %>">cpu load: <%= state.cpu_load.active ? state.cpu_load.workers + " worker(s)" : "off" %></span>
+    <span class="badge <%= state.memory_load.active ? "warn" : "ok" %>">memory load: <%= state.memory_load.active ? fmt.mib(state.memory_load.allocated_mib) + " " + state.memory_load.phase : "off" %></span>
+  </dd>
+  <dt>Hostname</dt><dd><%= info.hostname %></dd>
+  <dt>Container runtime</dt><dd><%= info.container_runtime %></dd>
+  <dt>Orchestrator</dt><dd><%= info.orchestrator %></dd>
+<% if (info.pod) { %>
+  <dt>Pod</dt><dd><%= fmt.or(info.pod.name) %></dd>
+  <dt>Namespace</dt><dd><%= fmt.or(info.pod.namespace) %></dd>
+  <dt>Node</dt><dd><%= fmt.or(info.pod.node) %></dd>
+  <dt>Pod IP</dt><dd><%= fmt.or(info.pod.ip) %></dd>
+  <dt>Service account</dt><dd><%= fmt.or(info.pod.service_account) %></dd>
+<% } %>
+  <dt>cgroup</dt><dd><%= info.cgroup.version %></dd>
+  <dt>CPU limit</dt><dd><%= fmt.cores(info.cgroup.cpu_limit_cores) %></dd>
+  <dt>Memory</dt><dd><%= fmt.bytes(info.cgroup.memory_usage_bytes) %> used / <%= fmt.bytes(info.cgroup.memory_limit_bytes, "unlimited") %></dd>
+  <dt>Node sees</dt><dd><%= fmt.bytes(info.constrained_memory_bytes, "no constraint") %> (process.constrainedMemory)</dd>
+  <dt>OS</dt><dd><%= info.os %></dd>
+  <dt>Node.js</dt><dd><%= info.node_version %></dd>
+  <dt>CPUs visible</dt><dd><%= info.cpus_visible %></dd>
+  <dt>Load (1m)</dt><dd><%= fmt.num(info.load_average_1m) %></dd>
+  <dt>uid / gid / pid</dt><dd><%= fmt.or(info.uid) %> / <%= fmt.or(info.gid) %> / <%= info.pid %></dd>
+  <dt>Started</dt><dd><%= fmt.time(state.started_at) %> (up <%= fmt.duration(state.uptime_seconds) %>)</dd>
+</dl>

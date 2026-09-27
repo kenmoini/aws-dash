@@ -1,0 +1,10 @@
+<% layout("/layout", { title: "Runtime", nav: "runtime" }) %>
+<div class="grid">
+  <section class="card">
+    <h2>Runtime</h2>
+    <div id="runtime" hx-get="/partials/runtime" hx-trigger="every 5s" hx-swap="innerHTML">
+<%~ include("/partials/runtime", it) %>
+    </div>
+  </section>
+<%~ include("/partials/controls", it) %>
+</div>
