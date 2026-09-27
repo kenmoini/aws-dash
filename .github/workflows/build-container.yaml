@@ -7,6 +7,9 @@ on:
       - "docs/**"
       - "**/*.md"
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
   schedule:
     - cron: "0 2 * * 0"
   workflow_dispatch: {}
