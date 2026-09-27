@@ -1,0 +1,11 @@
+.git
+.github
+node_modules
+dist
+tests
+docs
+deploy
+scripts
+*.md
+.claude
+.superpowers
