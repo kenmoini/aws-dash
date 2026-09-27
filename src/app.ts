@@ -11,6 +11,7 @@ import { CpuLoad } from "./load/cpu-load.js";
 import { MemoryLoad } from "./load/memory-load.js";
 import { createLogger } from "./logging.js";
 import { PUBLIC_DIR, VIEWS_DIR } from "./paths.js";
+import { registerControlRoutes } from "./routes/controls.js";
 import { errorBody } from "./routes/errors.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerPageRoutes } from "./routes/pages.js";
@@ -87,5 +88,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerHealthRoutes(app, deps);
   registerRuntimeRoutes(app, deps);
   registerPageRoutes(app, deps);
+  registerControlRoutes(app, deps);
   return app;
 }
