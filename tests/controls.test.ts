@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { testApp } from "./support/app-factory.js";
 import { FakeRoot } from "./support/fake-root.js";
@@ -6,7 +6,6 @@ import { FakeRoot } from "./support/fake-root.js";
 const FORM = { "content-type": "application/x-www-form-urlencoded" };
 const post = (app: FastifyInstance, url: string, payload = "", headers: Record<string, string> = {}) =>
   app.inject({ method: "POST", url, payload, headers: { ...FORM, ...headers } });
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 describe("controls", () => {
   let close = async () => {};
@@ -65,6 +64,14 @@ describe("controls", () => {
     expect((await post(app, "/controls/cpu", "enabled=false")).json().cpu_load).toEqual({ active: false, workers: 0 });
   });
 
+  it("cpu stop ignores an out-of-range workers value since enabled=false never starts anything", async () => {
+    const { app } = await testApp();
+    close = () => app.close();
+    const res = await post(app, "/controls/cpu", "enabled=false&workers=999");
+    expect(res.statusCode).toBe(200);
+    expect(res.json().cpu_load).toEqual({ active: false, workers: 0 });
+  });
+
   it("memory allocates, warns when the target exceeds the cgroup limit, and releases", async () => {
     const root = new FakeRoot().write("sys/fs/cgroup/cgroup.controllers", "memory").write("sys/fs/cgroup/memory.max", String(1024 * 1024));
     const { app, memory } = await testApp({ fsRoot: root.path });
@@ -99,8 +106,7 @@ describe("controls", () => {
     expect(res.statusCode).toBe(202);
     expect(res.json()).toEqual({ message: "exiting with code 3", exit_code: 3 });
     expect(exit.codes).toEqual([]);
-    await sleep(60);
-    expect(exit.codes).toEqual([3]);
+    await vi.waitFor(() => expect(exit.codes).toEqual([3]));
     expect(cpu.status().active).toBe(false);
     expect(memory.status().active).toBe(false);
   });
@@ -112,8 +118,7 @@ describe("controls", () => {
     const hx = await post(app, "/controls/crash", "", { "hx-request": "true" });
     expect(hx.statusCode).toBe(202);
     expect(hx.body).toBe('<span class="badge bad">Exiting with code 1…</span>');
-    await sleep(60);
-    expect(exit.codes).toEqual([1]);
+    await vi.waitFor(() => expect(exit.codes).toEqual([1]));
   });
 
   it("crash still exits when stopping the CPU load fails", async () => {
@@ -123,11 +128,13 @@ describe("controls", () => {
     await memory.settled();
     const original = cpu.stop.bind(cpu);
     cpu.stop = async () => { throw new Error("terminate failed"); };
-    const res = await post(app, "/controls/crash", "exit_code=7");
-    expect(res.statusCode).toBe(202);
-    await sleep(60);
-    expect(exit.codes).toEqual([7]);
-    expect(memory.status().active).toBe(false);
-    cpu.stop = original;
+    try {
+      const res = await post(app, "/controls/crash", "exit_code=7");
+      expect(res.statusCode).toBe(202);
+      await vi.waitFor(() => expect(exit.codes).toEqual([7]));
+      expect(memory.status().active).toBe(false);
+    } finally {
+      cpu.stop = original;
+    }
   });
 });
