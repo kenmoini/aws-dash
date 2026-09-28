@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: aws-dash-node-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aws-dash-node-reader
+subjects:
+  - kind: ServiceAccount
+    name: aws-dash
+    namespace: aws-dash   # kustomize does not rewrite this; overlays that change the namespace patch it (see deploy/ztwim)

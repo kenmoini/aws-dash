@@ -3,6 +3,14 @@
 The baseline the workload-identity overlays exist to eliminate: a long-lived IAM user key in a Secret.
 `AUTH_MODE=auto` picks `static` because `AWS_ACCESS_KEY_ID` is present (the SDK chain checks env first).
 
+Manifest files:
+- `namespace.yaml` — creates `namespace: aws-dash`
+- `serviceaccount.yaml` — creates `sa: aws-dash`
+- `rbac.yaml` — Role `aws-dash-pod-reader` (`get pods`) so the Kubernetes card can read this pod; node details need the `node-reader` component (`deploy/components/node-reader`, `get nodes`), which the EKS and ztwim overlays include.
+- `configmap.yaml` — pod configuration
+- `deployment.yaml` — aws-dash workload
+- `service.yaml` — ClusterIP for the dashboard
+
 ```bash
 aws iam create-user --user-name aws-dash
 aws iam create-access-key --user-name aws-dash --query 'AccessKey.{AWS_ACCESS_KEY_ID:AccessKeyId,AWS_SECRET_ACCESS_KEY:SecretAccessKey}' -o json

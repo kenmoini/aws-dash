@@ -3,6 +3,8 @@ kind: Kustomization
 namespace: aws-dash
 resources:
   - ../kubernetes
+components:
+  - ../components/node-reader
 patches:
   # Replace AWS_ACCOUNT_ID before applying (see README). The EKS pod-identity webhook reads this annotation and
   # injects AWS_ROLE_ARN + AWS_WEB_IDENTITY_TOKEN_FILE plus a projected token with audience sts.amazonaws.com.

@@ -1,0 +1,6 @@
+# Opt-in ClusterRole so the Kubernetes card can show the node (instance type, zone, kubelet). Overlays list it under `components:`.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - clusterrole.yaml
+  - clusterrolebinding.yaml

@@ -1,0 +1,21 @@
+# The Kubernetes card reads this pod through the API server; nothing else in the app needs RBAC.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: aws-dash-pod-reader
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: aws-dash-pod-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: aws-dash-pod-reader
+subjects:
+  - kind: ServiceAccount
+    name: aws-dash

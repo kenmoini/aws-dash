@@ -50,6 +50,8 @@ Open **Identity**. You should see mode `web-identity`, flavor **EKS IRSA**, a to
 **IMDS** shows the node (unless the node's hop limit is 1 or the cluster is EKS Auto Mode — then "unavailable" is
 expected). The access-check matrix is all green; detach `aws-dash-readonly` and re-run to watch it flip.
 
+The **Kubernetes** card shows this pod and, because this overlay includes the `node-reader` component, the node's instance type and zone.
+
 ## Troubleshooting
 
 | Symptom | Fix |

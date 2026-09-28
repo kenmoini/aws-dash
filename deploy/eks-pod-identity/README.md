@@ -35,6 +35,8 @@ Open **Identity**: mode `pod-identity`, flavor **EKS Pod Identity**, the decoded
 you observe — it is documented nowhere reliable), SDK source `z`. Pod Identity adds session tags
 (`kubernetes-namespace`, `kubernetes-service-account`, `eks-cluster-name`) you can use in IAM conditions.
 
+The **Kubernetes** card shows this pod and, because this overlay includes the `node-reader` component, the node's instance type and zone.
+
 ## Troubleshooting
 
 | Symptom | Fix |

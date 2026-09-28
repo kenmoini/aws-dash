@@ -3,6 +3,8 @@ kind: Kustomization
 namespace: aws-dash
 resources:
   - ../kubernetes
+components:
+  - ../components/node-reader
 patches:
   # Explicit so a missing PodIdentityAssociation is an error on the Identity tab instead of a silent fall-through
   # to the node's instance role via IMDS. The eks-pod-identity-agent injects AWS_CONTAINER_CREDENTIALS_FULL_URI and
