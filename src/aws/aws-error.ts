@@ -40,6 +40,11 @@ export function awsErrorFrom(err: unknown): AwsError {
     new AwsError(hint ? `${name}: ${message} — ${hint}` : `${name}: ${message}`, code ?? name, status, { cause: err });
 
   if (message.includes("Region is missing")) return wrap("set AWS_REGION");
+  if ((name === "ProviderError" || name === "CredentialsProviderError") && /instance metadata|IMDS|169\.254\.169\.254/i.test(message)) {
+    return wrap(
+      "the EC2 instance metadata service is unreachable: not running on EC2, or the pod cannot reach IMDS (hop limit 1) — provide credentials for another mode, or set AWS_EC2_METADATA_DISABLED=true so the app stops trying",
+    );
+  }
   if (name === "CredentialsProviderError") {
     return wrap(/token|web identity/i.test(message)
       ? "the web-identity token file is missing or unreadable; is the spiffe-helper sidecar or the IRSA webhook running?"

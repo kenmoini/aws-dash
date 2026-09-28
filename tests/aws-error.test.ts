@@ -27,6 +27,8 @@ describe("awsErrorFrom", () => {
     ["UnauthorizedOperation", "You are not authorized to perform this operation.", 403, /aws-dash-readonly-policy\.json/],
     ["SomeException", "forbidden thing", 403, /aws-dash-readonly-policy\.json/],
     ["TimeoutError", "Request timed out", undefined, /egress to AWS is blocked/],
+    ["ProviderError", "TimeoutError from instance metadata service", undefined, /instance metadata service is unreachable/],
+    ["CredentialsProviderError", "Could not fetch role name: connect ETIMEDOUT 169.254.169.254:80", undefined, /instance metadata service is unreachable/],
   ])("translates %s", (name, message, status, hint) => {
     const out = awsErrorFrom(sdkError(name, message, status));
     expect(out).toBeInstanceOf(AwsError);

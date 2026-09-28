@@ -18,7 +18,7 @@ describe("AWS page and panels", () => {
     expect(html).toContain('<a href="/aws" class="active">AWS</a>');
     expect(html).toContain('hx-post="/api/aws/refresh"');
     expect(html).toContain("eu-west-1");
-    expect(html).toContain("static — auto: AWS_ACCESS_KEY_ID is set");
+    expect(html).toContain("static — auto: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set");
     for (const kind of KINDS) expect(html).toContain(`data-aws-panel hx-get="/partials/aws/${kind}" hx-trigger="load, refresh"`);
     expect(html).toContain("Security group rules");
   });
