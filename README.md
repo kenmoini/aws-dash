@@ -9,8 +9,9 @@ The AWS sibling of [gcp-dash](https://github.com/kenmoini/gcp-dash) and [azure-d
 
 ## Status
 
-Phase 2: the AWS tab (eight read-only inventory panels), explicit credential-mode selection, and Prometheus
-`/metrics`. The Identity tab is not implemented yet (its nav link 404s).
+Phase 3: the Identity tab (decoded token, STS identity, credential facts, access-check matrix, IMDS card), identity
+metrics, and the EKS IRSA / EKS Pod Identity / OpenShift native-issuer overlays. The SPIFFE panel, Kubernetes card
+and ZTWIM overlay are Phase 4.
 
 ## Run locally
 
@@ -44,7 +45,14 @@ scripts/run-podman.sh   # --cpus 1 --memory 512m; allocate >512 MiB with the mem
 | GET | `/aws` | AWS page: header card + 8 lazy panels |
 | GET | `/api/aws/{kind}[?refresh=true]` | `{kind, fetched_at, error, items, truncated}`; kinds: account, instances, vpcs, subnets, securitygroups, s3buckets, eksclusters, ecrrepos |
 | GET | `/partials/aws/{kind}[?refresh=1]` | htmx panel |
-| POST | `/api/aws/refresh` | drop every cached kind → 204 |
+| POST | `/api/aws/refresh` | drop every cached kind, plus the identity, access-check and IMDS caches → 204 |
+| GET | `/identity` | Identity page: auth-mode card, decoded token, STS identity, credential facts, access-check matrix, IMDS card |
+| GET | `/api/identity[?refresh=true]` | `{mode, reason, flavor, …, token, sts, credentials, fetched_at}` (spec §5) — how the app authenticates, the decoded token, what STS returned, and credential facts |
+| GET | `/partials/identity` | htmx fragment |
+| GET | `/api/access-check[?refresh=true]` | `{enabled, fetched_at, principal_arn, error, rows[{action, service, result, code, message, duration_ms}]}` |
+| GET | `/partials/access-check` | htmx fragment |
+| GET | `/api/imds[?refresh=true]` | `{available, reason, instance, fetched_at}` |
+| GET | `/partials/imds` | htmx fragment |
 | GET | `/metrics` | Prometheus text; 404 when `METRICS_ENABLED=false` |
 
 Requests with `HX-Request: true` get HTML fragments; everything else gets JSON. Bad input → 422 `{"detail":…}`;
@@ -64,7 +72,10 @@ all controls → 403 when `CONTROLS_ENABLED=false`.
 | `AWS_CACHE_TTL_SECONDS` | `60` | how long an inventory kind's result is served from cache before it's refetched |
 | `AWS_DEBUG` | `false` | logs SDK request metadata |
 | `METRICS_ENABLED` | `true` | `false` → `/metrics` returns 404 |
-| `IMDS_ENABLED`, `K8S_INFO_ENABLED`, `ACCESS_CHECK_ENABLED`, `SPIFFE_ENDPOINT_SOCKET`, `SPIFFE_JWT_AUDIENCE` | see `src/config.ts` | parsed now, used from Phase 3 onward |
+| `IMDS_ENABLED` | `true` | `false` hides the IMDS card and skips the IMDS probe |
+| `ACCESS_CHECK_ENABLED` | `true` | `false` hides the access-check matrix |
+| `ACCESS_CHECK_ACTIONS` | unset = all | comma-separated subset of the 11 access-check actions (see `src/identity/access-check-actions.ts`); `sts:GetCallerIdentity` always runs |
+| `K8S_INFO_ENABLED`, `SPIFFE_ENDPOINT_SOCKET`, `SPIFFE_JWT_AUDIENCE` | see `src/config.ts` | parsed now, used from Phase 4 onward |
 
 Downward API variables shown on the Runtime tab: `POD_NAME`, `POD_NAMESPACE`, `NODE_NAME`, `POD_IP`, `SERVICE_ACCOUNT`.
 
@@ -81,9 +92,19 @@ keys when both are set — set only one. Any mode can also be forced explicitly 
 | `pod-identity` | `AWS_CONTAINER_CREDENTIALS_FULL_URI` or `AWS_CONTAINER_CREDENTIALS_RELATIVE_URI` is set | `fromHttp` (container credentials endpoint) |
 | `imds` | none of the above matched (the fallback) | `fromInstanceMetadata` (the node's/instance's role) |
 
+## Metrics
+
+Beyond the Phase 2 inventory and probe metrics, `/metrics` exposes four identity/access-check gauges and counters:
+`aws_dash_credential_expiry_seconds{mode}` (seconds until the cached credentials expire), `aws_dash_token_file_expiry_seconds`
+(seconds until the web-identity token file expires), `aws_dash_credential_resolutions_total{mode,result}` (credential
+resolutions by mode and result), and `aws_dash_access_check_allowed{action}` (1 when the last access check allowed the
+action, else 0). All four are gauges/counters computed from cached state at scrape time — a scrape never calls AWS or IMDS.
+
 ## Deploy
 
-See [deploy/README.md](deploy/README.md). Quick start on any cluster: `kubectl apply -k deploy/kubernetes`.
+See [deploy/README.md](deploy/README.md). Quick start on any cluster: `kubectl apply -k deploy/kubernetes`. EKS and
+OpenShift workload-identity overlays: [`deploy/eks-irsa`](deploy/eks-irsa/README.md),
+[`deploy/eks-pod-identity`](deploy/eks-pod-identity/README.md), [`deploy/openshift-native-oidc`](deploy/openshift-native-oidc/README.md).
 
 ## Permissions
 
@@ -102,6 +123,8 @@ last successfully fetched data — when the policy is missing or incomplete.
 6. Detach the read-only policy and click "Refresh all" → every panel except Account shows an AccessDenied hint
    (`sts:GetCallerIdentity` needs no permission) but keeps its last data; re-attach to recover.
 7. Scrape `/metrics` (e.g. `curl -s localhost:8080/metrics | grep aws_dash_`) while doing the above.
+8. Open Identity: read the mode, the decoded token's iss/sub/aud, and what STS returned — the raw token is never shown.
+9. Detach the read-only policy and click re-run on the access check: every row except sts:GetCallerIdentity flips to denied; re-attach and re-run.
 
 ## Security
 
