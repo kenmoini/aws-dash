@@ -2,7 +2,7 @@ import { X509Certificate } from "node:crypto";
 import type { Clock } from "../clock.js";
 import type { TtlCache } from "../inventory/ttl-cache.js";
 import { decodeJwtForDisplay, type JwtSummary } from "./jwt-display.js";
-import { describeWorkloadApiError, type WorkloadApiFactory, type X509SvidRaw } from "./workload-api.js";
+import { describeWorkloadApiError, type WorkloadApi, type WorkloadApiFactory, type X509SvidRaw } from "./workload-api.js";
 
 export interface X509Summary {
   spiffe_id: string;
@@ -83,8 +83,9 @@ export class SpiffePanel {
 
   private async load(socket: string): Promise<SpiffeInfo> {
     const now = this.opts.clock.now();
-    const api = this.opts.createApi(socket, this.timeoutMs);
+    let api: WorkloadApi | undefined;
     try {
+      api = this.opts.createApi(socket, this.timeoutMs);
       let x509: X509Summary | null = null;
       let x509Error: string | null = null;
       try {
@@ -101,8 +102,12 @@ export class SpiffePanel {
       }
       if (x509 === null && jwt.error !== null) return { ...this.unavailable(x509Error ?? jwt.error), fetched_at: now.toISOString() };
       return { available: true, reason: null, socket, x509, x509_error: x509Error, jwt, fetched_at: now.toISOString() };
+    } catch (err) {
+      // A throwing factory (e.g. an unparseable target) must not reject load(), or TtlCache would cache
+      // `value: null` and every consumer would crash on `info.available`.
+      return { ...this.unavailable(describeWorkloadApiError(err, socket)), fetched_at: now.toISOString() };
     } finally {
-      api.close();
+      api?.close();
     }
   }
 }

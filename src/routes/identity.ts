@@ -15,7 +15,7 @@ export function registerIdentityRoutes(app: FastifyInstance, deps: AppDeps): voi
   app.get("/partials/spiffe", async (req, reply) =>
     reply.partial("partials/spiffe", {
       info: await deps.spiffe.get(isRefresh(req)),
-      token_sub: deps.identity.peek()?.token?.claims["sub"] ?? null,
+      token_sub: (await deps.identity.get()).token?.claims["sub"] ?? null,
       now: deps.clock.now().toISOString(),
     }));
   app.get("/api/k8s", (req) => deps.k8s.get(isRefresh(req)));

@@ -8,7 +8,7 @@ export interface K8sReadClient {
 
 export type K8sClientFactory = () => K8sReadClient;
 
-/** In-cluster config: KUBERNETES_SERVICE_HOST/PORT plus the mounted service-account token and CA. Throws when the token file is missing. */
+/** Reads KUBERNETES_SERVICE_HOST/PORT and the mounted CA path; the service-account token is read per request. */
 export const createInClusterClient: K8sClientFactory = () => {
   const kc = new KubeConfig();
   kc.loadFromCluster();

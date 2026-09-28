@@ -101,6 +101,17 @@ describe("SpiffePanel", () => {
     expect(info.jwt?.error).toBeNull();
   });
 
+  it("is unavailable, and never rejects, when the factory itself throws (e.g. an unparseable target)", async () => {
+    const clock = new FakeClock();
+    const p = new SpiffePanel({
+      socket: SOCKET, audience: "aws-dash", clock, cache: new TtlCache(60_000, clock), timeoutMs: 20,
+      createApi: () => { throw new Error('Could not parse target name ""'); },
+    });
+    const info = await p.get();
+    expect(info.available).toBe(false);
+    expect(info.reason).toContain('Could not parse target name ""');
+  });
+
   it("caches for the TTL, force reloads, and invalidateAll expires", async () => {
     const api = new FakeWorkloadApi();
     const { p, clock } = panel(api);
@@ -144,6 +155,13 @@ describe("SPIFFE routes", () => {
       expect(html, text).toContain(text);
     }
     for (const secret of [workloadApi.token, stsToken, TEST_SIGNATURE, FIXTURE_PEM_BODY]) expect(html, secret.slice(0, 20)).not.toContain(secret);
+  });
+
+  it("shows the same-as-token-sub badge on the very first /partials/spiffe load, without pre-warming identity", async () => {
+    const { app } = await testApp({ env: ZTWIM, credentials: { spec: { credential_type: "fromTokenFile → sts:AssumeRoleWithWebIdentity", role_arn: ZTWIM.AWS_ROLE_ARN, token_file: ZTWIM.AWS_WEB_IDENTITY_TOKEN_FILE } }, readFile: () => stsToken });
+    close = () => app.close();
+    const html = (await app.inject({ url: "/partials/spiffe" })).body;
+    expect(html).toContain("same as the token sub presented to STS");
   });
 
   it("shows 'differs' when the STS token sub is another identity, and Unavailable without a socket", async () => {

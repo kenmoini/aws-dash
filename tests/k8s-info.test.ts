@@ -1,3 +1,4 @@
+import { ApiException } from "@kubernetes/client-node";
 import { afterEach, describe, expect, it } from "vitest";
 import { TtlCache } from "../src/inventory/ttl-cache.js";
 import { K8sInfoService } from "../src/k8s/k8s-info.js";
@@ -61,6 +62,21 @@ describe("K8sInfoService", () => {
     expect(client.calls.node).toBe(0);
   });
 
+  it("keeps the API server's Status message for a real ApiException (JSON string body)", async () => {
+    const client = new FakeK8sClient();
+    client.fail("pod", 403, 'User "system:serviceaccount:aws-dash:aws-dash" cannot get resource "pods"');
+    const info = await service(client).svc.get();
+    expect(info.reason).toContain('User "system:serviceaccount:aws-dash:aws-dash" cannot get resource "pods"');
+  });
+
+  it("falls back without throwing when the ApiException body is not JSON", async () => {
+    const client = new FakeK8sClient();
+    client.nodeError = new ApiException(500, "Unknown API Status Code!", "<html>bad gateway</html>", {});
+    const info = await service(client).svc.get();
+    expect(info.available).toBe(true);
+    expect(info.node_error).toBe("HTTP-Code: 500");
+  });
+
   it.each([
     [{ ...IN_CLUSTER, KUBERNETES_SERVICE_HOST: "" }, "not running in Kubernetes (KUBERNETES_SERVICE_HOST is not set)"],
     [{ ...IN_CLUSTER, POD_NAME: "" }, "POD_NAME / POD_NAMESPACE are not set: add the downward API env entries from deploy/kubernetes/deployment.yaml"],
@@ -77,7 +93,7 @@ describe("K8sInfoService", () => {
     expect(created()).toBe(0);
   });
 
-  it("reports a client that cannot be built (no service-account token) as unavailable", async () => {
+  it("reports a client factory that throws as unavailable", async () => {
     const clock = new FakeClock();
     const svc = new K8sInfoService({ enabled: true, env: (n) => IN_CLUSTER[n as keyof typeof IN_CLUSTER], clock, cache: new TtlCache(60_000, clock), createClient: () => { throw new Error("ENOENT: /var/run/secrets/kubernetes.io/serviceaccount/token"); } });
     expect(await svc.get()).toMatchObject({ available: false, reason: "cannot load the in-cluster config: ENOENT: /var/run/secrets/kubernetes.io/serviceaccount/token" });

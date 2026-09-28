@@ -45,16 +45,17 @@ describe("createWorkloadApi against a local Unix socket", () => {
     api.close();
   }, 10_000);
 
-  it("reports a missing socket as not reachable", async () => {
-    const api = createWorkloadApi("unix:///nonexistent/aws-dash/agent.sock", 300);
+  it("reports a missing socket as not reachable, even given a plain path (helper.conf's agent_address form, no unix:// prefix)", async () => {
+    const socket = "/nonexistent/aws-dash/agent.sock";
+    const api = createWorkloadApi(socket, 300);
     let message = "";
     try {
       await api.fetchX509();
     } catch (err) {
-      message = describeWorkloadApiError(err, "unix:///nonexistent/aws-dash/agent.sock");
+      message = describeWorkloadApiError(err, socket);
     } finally {
       api.close();
     }
-    expect(message).toMatch(/not reachable at unix:\/\/\/nonexistent\/aws-dash\/agent.sock|did not answer within the deadline/);
+    expect(message).toMatch(/not reachable at \/nonexistent\/aws-dash\/agent.sock|did not answer within the deadline/);
   }, 10_000);
 });

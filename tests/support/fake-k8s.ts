@@ -1,7 +1,9 @@
-import type { V1Node, V1Pod } from "@kubernetes/client-node";
+import { ApiException, type V1Node, type V1Pod } from "@kubernetes/client-node";
 import type { K8sReadClient } from "../../src/k8s/k8s-client.js";
 
-export const apiError = (code: number, message: string): Error => Object.assign(new Error(message), { code, body: { message } });
+/** A non-declared status (403/404/5xx) the way `@kubernetes/client-node` 2.0.0 really throws it: `body` is the JSON string of a `Status` object. */
+export const apiError = (code: number, message: string): ApiException<string> =>
+  new ApiException(code, "Unknown API Status Code!", JSON.stringify({ kind: "Status", message, code }), {});
 
 export const HEALTHY_POD: V1Pod = {
   metadata: { name: "aws-dash-7d9f-abcde", namespace: "aws-dash" },

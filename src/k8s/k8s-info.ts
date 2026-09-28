@@ -71,10 +71,26 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
 }
 
+/**
+ * The `Status` message from the API server, when one is available. `@kubernetes/client-node` 2.0.0 throws a
+ * non-declared status (403/404/5xx) as `new ApiException(code, "Unknown API Status Code!", body, headers)` where
+ * `body` is the raw JSON *string* of a `Status` object; for a 401 `body` is `undefined`.
+ */
+function apiStatusMessage(e: { body?: unknown }): string | undefined {
+  try {
+    const parsed: unknown = typeof e.body === "string" ? JSON.parse(e.body) : e.body;
+    const message = (parsed as { message?: unknown } | null | undefined)?.message;
+    if (typeof message === "string" && message !== "") return message;
+  } catch {
+    // e.body was not JSON — fall back to e.message below.
+  }
+  return undefined;
+}
+
 /** One line per failure; 403s name the manifest that grants the missing permission. */
 export function describeK8sError(err: unknown, what: "pods" | "nodes"): string {
-  const e = err as { code?: unknown; name?: string; message?: string; body?: { message?: string } };
-  const msg = firstLine(e.body?.message ?? e.message ?? String(err));
+  const e = err as { code?: unknown; name?: string; message?: string; body?: unknown };
+  const msg = firstLine(apiStatusMessage(e) ?? e.message ?? String(err));
   if (e.name === "TimeoutError") return msg;
   switch (typeof e.code === "number" ? e.code : null) {
     case 403:

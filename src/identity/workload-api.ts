@@ -27,8 +27,11 @@ export type WorkloadApiFactory = (socket: string, timeoutMs: number) => Workload
 
 /** `socket` is the SPIFFE endpoint URI, e.g. unix:///spiffe-workload-api/spire-agent.sock; `timeoutMs` is the gRPC deadline per call. */
 export const createWorkloadApi: WorkloadApiFactory = (socket, timeoutMs) => {
+  // SPIFFE_ENDPOINT_SOCKET is conventionally a URI (unix:///path), but helper.conf's agent_address is a plain
+  // path — an easy value to copy in by mistake. grpc-js treats a bare path as a DNS name, so give it the URI form.
+  const host = socket.startsWith("/") ? `unix://${socket}` : socket;
   const transport = new GrpcTransport({
-    host: socket,
+    host,
     channelCredentials: ChannelCredentials.createInsecure(),
     meta: { "workload.spiffe.io": "true" },
   });
