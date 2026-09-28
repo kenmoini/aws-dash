@@ -42,6 +42,7 @@ describe("mappers", () => {
         { IpProtocol: "tcp", FromPort: 443, ToPort: 443, IpRanges: [{ CidrIp: "0.0.0.0/0" }, { CidrIp: "10.0.0.0/8" }], UserIdGroupPairs: [{ GroupId: "sg-2" }] },
         { IpProtocol: "tcp", FromPort: 8000, ToPort: 8100, PrefixListIds: [{ PrefixListId: "pl-1" }] },
         { IpProtocol: "icmp", FromPort: -1, ToPort: -1, IpRanges: [{ CidrIp: "10.0.0.0/8" }] },
+        { FromPort: 22, ToPort: 22, IpRanges: [{ CidrIp: "10.1.0.0/16" }] },
       ],
       IpPermissionsEgress: [{ IpProtocol: "-1", IpRanges: [{ CidrIp: "0.0.0.0/0" }] }, { IpProtocol: "udp", FromPort: 53, ToPort: 53 }],
     });
@@ -51,6 +52,7 @@ describe("mappers", () => {
       { group_id: "sg-1", group_name: "web", vpc_id: "vpc-1", direction: "ingress", protocol: "tcp", ports: "443", peer: "sg-2" },
       { group_id: "sg-1", group_name: "web", vpc_id: "vpc-1", direction: "ingress", protocol: "tcp", ports: "8000-8100", peer: "pl-1" },
       { group_id: "sg-1", group_name: "web", vpc_id: "vpc-1", direction: "ingress", protocol: "icmp", ports: "all", peer: "10.0.0.0/8" },
+      { group_id: "sg-1", group_name: "web", vpc_id: "vpc-1", direction: "ingress", protocol: "all", ports: "all", peer: "10.1.0.0/16" },
       { group_id: "sg-1", group_name: "web", vpc_id: "vpc-1", direction: "egress", protocol: "all", ports: "all", peer: "0.0.0.0/0" },
       { group_id: "sg-1", group_name: "web", vpc_id: "vpc-1", direction: "egress", protocol: "udp", ports: "53", peer: "—" },
     ]);

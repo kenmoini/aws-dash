@@ -63,7 +63,7 @@ export function mapSubnet(s: Subnet): SubnetInfo {
 }
 
 function portRange(p: IpPermission): string {
-  if (p.IpProtocol === "-1") return "all";
+  if (p.IpProtocol === "-1" || p.IpProtocol === undefined) return "all";
   const from = p.FromPort;
   const to = p.ToPort;
   if (from === undefined || from < 0) return "all";
