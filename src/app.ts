@@ -4,12 +4,13 @@ import fastifyStatic from "@fastify/static";
 import formbody from "@fastify/formbody";
 import Fastify, { LogController, type FastifyBaseLogger, type FastifyError, type FastifyInstance } from "fastify";
 import type { Logger } from "pino";
-import { AwsError, awsErrorFrom } from "./aws/aws-error.js";
+import { awsErrorFrom } from "./aws/aws-error.js";
 import { systemClock, type Clock } from "./clock.js";
 import { settingsFromEnv, type AppSettings } from "./config.js";
 import { processEnv, type EnvLookup } from "./env.js";
 import { CredentialProvider } from "./identity/credential-provider.js";
 import { InventoryService } from "./inventory/inventory-service.js";
+import { createLiveAwsProvider } from "./inventory/live-provider.js";
 import type { AwsProvider } from "./inventory/provider.js";
 import { TtlCache } from "./inventory/ttl-cache.js";
 import { CpuLoad } from "./load/cpu-load.js";
@@ -59,7 +60,7 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
   const memory = overrides.memory ?? new MemoryLoad({ clock });
   const logger = overrides.logger ?? createLogger(settings);
   const credentials = overrides.credentials ?? new CredentialProvider(settings, env);
-  const createAwsProvider = overrides.createAwsProvider ?? (() => { throw new AwsError("live AWS provider is not available in this build"); });
+  const createAwsProvider = overrides.createAwsProvider ?? (() => createLiveAwsProvider({ settings, credentials, logger }));
   const inventory = overrides.inventory ?? new InventoryService(createAwsProvider, new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message), logger);
   return {
     settings, env, clock, state, cpu, memory, logger,
