@@ -6,7 +6,7 @@ resources:
   - route.yaml
   - identity-configmap.yaml
   - spiffe-helper-configmap.yaml
-  - clusterspiffeid.yaml
+  # clusterspiffeid.yaml is applied separately (oc apply -f): kustomize would stamp the overlay namespace onto the cluster-scoped CR.
 components:
   - ../components/node-reader
 patches:

@@ -55,6 +55,7 @@ The trust policy pins `aud = aws-dash` (the audience spiffe-helper requests) and
 
 ```bash
 sed -i.bak "s/AWS_ACCOUNT_ID/$AWS_ACCOUNT_ID/" deploy/ztwim/identity-configmap.yaml
+oc apply -f deploy/ztwim/clusterspiffeid.yaml   # cluster-scoped, so applied on its own rather than through kustomize
 oc apply -k deploy/ztwim
 oc -n aws-dash-ztwim rollout status deploy/aws-dash
 oc -n aws-dash-ztwim logs deploy/aws-dash -c spiffe-helper --tail=20
@@ -62,7 +63,7 @@ oc -n aws-dash-ztwim exec deploy/aws-dash -c aws-dash -- head -c 20 /var/run/sec
 oc -n aws-dash-ztwim get route aws-dash -o jsonpath='https://{.spec.host}{"\n"}'
 ```
 
-`oc apply -k` needs cluster-admin once for the `ClusterSPIFFEID` and the `node-reader` ClusterRoleBinding.
+The `ClusterSPIFFEID` and the `node-reader` ClusterRoleBinding need cluster-admin once.
 
 ## 3. What you should see
 
