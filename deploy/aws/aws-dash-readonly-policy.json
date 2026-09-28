@@ -1,0 +1,24 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AwsDashReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "sts:GetCallerIdentity",
+        "iam:ListAccountAliases",
+        "iam:GetRole",
+        "ec2:DescribeRegions",
+        "ec2:DescribeInstances",
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeSecurityGroups",
+        "s3:ListAllMyBuckets",
+        "eks:ListClusters",
+        "eks:DescribeCluster",
+        "ecr:DescribeRepositories"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
