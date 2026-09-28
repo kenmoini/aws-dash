@@ -2083,7 +2083,7 @@ git commit -m "deploy: least-privilege read-only IAM policy and runbook steps" -
 
 **Interfaces:**
 - Consumes: `prom-client` (`Registry`, `Gauge`, `Counter`, `Histogram`, `collectDefaultMetrics`), `StateSnapshot`, `CgroupInfo`, `InventoryObserver` (Task 4).
-- Produces: `class Metrics implements InventoryObserver { constructor(sources: MetricsSources); readonly registry: Registry; fetched(kind, ok, seconds); httpRequest(method, route, status); render(): Promise<string>; readonly contentType: string }`; `interface MetricsSources { version; nodeVersion; authMode; startedAt: Date; snapshot: () => StateSnapshot; cgroup: () => CgroupInfo }`; `registerMetricsRoutes(app, deps)` → `GET /metrics` (404 `{detail:"metrics are disabled (METRICS_ENABLED=false)"}` when disabled); `readCgroupInfo(root): CgroupInfo`.
+- Produces: `registerHttpMetricsHook(app, deps)` (declared before the routes); `class Metrics implements InventoryObserver { constructor(sources: MetricsSources); readonly registry: Registry; fetched(kind, ok, seconds); httpRequest(method, route, status); render(): Promise<string>; readonly contentType: string }`; `interface MetricsSources { version; nodeVersion; authMode; startedAt: Date; snapshot: () => StateSnapshot; cgroup: () => CgroupInfo }`; `registerMetricsRoutes(app, deps)` → `GET /metrics` (404 `{detail:"metrics are disabled (METRICS_ENABLED=false)"}` when disabled); `readCgroupInfo(root): CgroupInfo`.
 - Metric names (all with `help` text): `aws_dash_info{version,node_version,auth_mode}`, `aws_dash_start_time_seconds`, `aws_dash_probe_live`, `aws_dash_probe_ready`, `aws_dash_cpu_load_workers`, `aws_dash_memory_load_allocated_bytes`, `aws_dash_memory_load_target_bytes`, `aws_dash_cgroup_memory_limit_bytes`, `aws_dash_cgroup_memory_usage_bytes`, `aws_dash_cgroup_cpu_limit_cores` (−1 when unknown/unlimited), `aws_dash_inventory_fetch_duration_seconds{kind}` (histogram, buckets `0.05 0.1 0.25 0.5 1 2.5 5 10`), `aws_dash_inventory_fetch_errors_total{kind}`, `aws_dash_inventory_last_success_timestamp_seconds{kind}`, `aws_dash_http_requests_total{method,route,status}`, plus prom-client's default process/nodejs metrics. Every gauge is computed in a `collect()` callback from in-memory state — a scrape never calls AWS.
 - Each `Metrics` instance owns its own `Registry` (never the global one) so tests can build many apps.
 
@@ -2268,6 +2268,10 @@ export function registerMetricsRoutes(app: FastifyInstance, deps: AppDeps): void
     if (!deps.settings.metricsEnabled) return reply.code(404).send(errorBody("metrics are disabled (METRICS_ENABLED=false)"));
     return reply.type(deps.metrics.contentType).send(await deps.metrics.render());
   });
+}
+
+/** Counts every response by route pattern. Must be added BEFORE any route is registered so it applies to all of them. */
+export function registerHttpMetricsHook(app: FastifyInstance, deps: AppDeps): void {
   app.addHook("onResponse", (req, reply, done) => {
     deps.metrics.httpRequest(req.method, req.routeOptions.url ?? "unmatched", reply.statusCode);
     done();
@@ -2277,7 +2281,7 @@ export function registerMetricsRoutes(app: FastifyInstance, deps: AppDeps): void
 (Fastify 5 exposes the matched route pattern as `req.routeOptions.url`; it is `undefined` for the not-found handler. If TypeScript says `url` is non-optional, keep the `?? "unmatched"` — the runtime value is undefined for 404s.)
 
 Modify `src/app.ts`:
-- imports: `import { Metrics } from "./metrics/metrics.js"; import { readCgroupInfo } from "./runtime/runtime-info.js"; import { registerMetricsRoutes } from "./routes/metrics.js";`
+- imports: `import { Metrics } from "./metrics/metrics.js"; import { readCgroupInfo } from "./runtime/runtime-info.js"; import { registerHttpMetricsHook, registerMetricsRoutes } from "./routes/metrics.js";`
 - `AppDeps` gains `metrics: Metrics;`
 - in `createDeps`, compute `const fsRoot = overrides.fsRoot ?? "/";` and `const version = overrides.version ?? pkg.version;` before building the rest; after `stateService` is known:
 ```ts
@@ -2289,7 +2293,7 @@ Modify `src/app.ts`:
   const inventory = overrides.inventory ?? new InventoryService(createAwsProvider, new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message), logger, metrics);
 ```
 and return `fsRoot, version, stateService, metrics, inventory` from the same variables.
-- `buildApp`: `registerMetricsRoutes(app, deps);` after `registerInventoryRoutes`.
+- `buildApp`: call `registerHttpMetricsHook(app, deps);` immediately after `registerRendering(...)` and BEFORE `app.setNotFoundHandler` and every `register*Routes` call (Fastify applies request hooks to routes declared after the hook in the same context); then `registerMetricsRoutes(app, deps);` after `registerInventoryRoutes`.
 
 - [ ] **Step 4: Run to verify it passes**
 
