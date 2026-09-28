@@ -23,6 +23,8 @@ import { InventoryService } from "./inventory/inventory-service.js";
 import { createLiveAwsProvider } from "./inventory/live-provider.js";
 import type { AwsProvider } from "./inventory/provider.js";
 import { TtlCache } from "./inventory/ttl-cache.js";
+import { createInClusterClient, type K8sClientFactory } from "./k8s/k8s-client.js";
+import { K8sInfoService } from "./k8s/k8s-info.js";
 import { CpuLoad } from "./load/cpu-load.js";
 import { MemoryLoad } from "./load/memory-load.js";
 import { createLogger } from "./logging.js";
@@ -75,6 +77,10 @@ export interface AppDeps {
   createWorkloadApi: WorkloadApiFactory;
   spiffeTimeoutMs: number;
   spiffe: SpiffePanel;
+  /** Builds the in-cluster API client on first load; tests inject a fake. */
+  createK8sClient: K8sClientFactory;
+  k8sTimeoutMs: number;
+  k8s: K8sInfoService;
 }
 
 const pkg = createRequire(import.meta.url)("../package.json") as { version: string };
@@ -128,6 +134,12 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     socket: settings.spiffeEndpointSocket, audience: settings.spiffeJwtAudience, clock, createApi: createWorkloadApiFn, timeoutMs: spiffeTimeoutMs,
     cache: new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message),
   });
+  const createK8sClientFn = overrides.createK8sClient ?? createInClusterClient;
+  const k8sTimeoutMs = overrides.k8sTimeoutMs ?? 3000;
+  const k8s = overrides.k8s ?? new K8sInfoService({
+    enabled: settings.k8sInfoEnabled, env, clock, createClient: createK8sClientFn, timeoutMs: k8sTimeoutMs,
+    cache: new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message),
+  });
   return {
     settings, env, clock, state, cpu, memory, logger,
     fsRoot,
@@ -150,6 +162,9 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     createWorkloadApi: createWorkloadApiFn,
     spiffeTimeoutMs,
     spiffe,
+    createK8sClient: createK8sClientFn,
+    k8sTimeoutMs,
+    k8s,
   };
 }
 

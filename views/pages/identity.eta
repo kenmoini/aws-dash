@@ -16,4 +16,8 @@
     <h2>SPIFFE workload identity</h2>
     <p class="muted">Loading…</p>
   </section>
+  <section class="card" data-k8s-panel hx-get="/partials/k8s" hx-trigger="load">
+    <h2>Kubernetes</h2>
+    <p class="muted">Loading…</p>
+  </section>
 </div>

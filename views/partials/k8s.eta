@@ -1,0 +1,49 @@
+<% const i = it.info, fmt = it.fmt; %>
+<% const phaseBadge = (p) => p === "Running" ? "ok" : p === "Pending" ? "warn" : p === null ? "muted" : "bad"; %>
+<h2>Kubernetes</h2>
+<% if (!i.available) { %>
+<p class="muted">Unavailable: <%= i.reason %></p>
+<% } else { %>
+<p class="muted">Read live from the API server with this pod's service-account token: the Role in <code>deploy/kubernetes/rbac.yaml</code> allows <code>get pods</code>; the <code>node-reader</code> component allows <code>get nodes</code>.</p>
+<h3>This pod</h3>
+<dl class="kv">
+  <dt>Name</dt><dd><%= i.pod.name %></dd>
+  <dt>Namespace</dt><dd><%= i.pod.namespace %></dd>
+  <dt>Phase</dt><dd><span class="badge <%= phaseBadge(i.pod.phase) %>"><%= fmt.or(i.pod.phase) %></span></dd>
+  <dt>Node</dt><dd><%= fmt.or(i.pod.node) %></dd>
+  <dt>Started</dt><dd><%= fmt.time(i.pod.started_at) %></dd>
+  <dt>Service account</dt><dd><%= fmt.or(i.pod.service_account) %></dd>
+  <dt>QoS class</dt><dd><%= fmt.or(i.pod.qos_class) %></dd>
+</dl>
+<table class="k8s">
+  <thead><tr><th>container</th><th>ready</th><th>restarts</th><th>state</th><th>last terminated</th></tr></thead>
+  <tbody>
+<% for (const c of i.pod.containers) { %>
+    <tr>
+      <td><%= c.name %></td>
+      <td><span class="badge <%= c.ready ? "ok" : "warn" %>"><%= c.ready ? "yes" : "no" %></span></td>
+      <td><%= c.restart_count %></td>
+      <td><%= c.state %><% if (c.started_at !== null) { %> since <%= fmt.time(c.started_at) %><% } %></td>
+      <td><% if (c.last_terminated === null) { %>—<% } else { %><span class="badge <%= c.last_terminated.reason === "Completed" ? "muted" : "bad" %>"><%= c.last_terminated.reason ?? "terminated" %> (exit <%= c.last_terminated.exit_code %>)</span><% if (c.last_terminated.finished_at !== null) { %> at <%= fmt.time(c.last_terminated.finished_at) %><% } %><% } %></td>
+    </tr>
+<% } %>
+  </tbody>
+</table>
+<h3>This node</h3>
+<% if (i.node === null) { %>
+<p class="muted"><%= i.node_error %></p>
+<% } else { %>
+<dl class="kv">
+  <dt>Name</dt><dd><%= i.node.name %></dd>
+  <dt>Instance type</dt><dd><%= fmt.or(i.node.instance_type) %></dd>
+  <dt>Zone / region</dt><dd><%= fmt.or(i.node.zone) %> / <%= fmt.or(i.node.region) %></dd>
+  <dt>Architecture</dt><dd><%= fmt.or(i.node.arch) %></dd>
+  <dt>OS image</dt><dd><%= fmt.or(i.node.os_image) %></dd>
+  <dt>Kubelet</dt><dd><%= fmt.or(i.node.kubelet_version) %></dd>
+  <dt>Container runtime</dt><dd><%= fmt.or(i.node.container_runtime) %></dd>
+  <dt>Provider ID</dt><dd><%= fmt.or(i.node.provider_id) %></dd>
+  <dt>Allocatable</dt><dd><%= fmt.or(i.node.allocatable_cpu) %> CPU · <%= fmt.or(i.node.allocatable_memory) %></dd>
+</dl>
+<% } %>
+<% } %>
+<p class="muted">Checked <%= fmt.time(i.fetched_at) %> · <a href="#" hx-get="/partials/k8s?refresh=1" hx-target="closest [data-k8s-panel]">refresh</a></p>

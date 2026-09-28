@@ -30,6 +30,7 @@
     "@fastify/formbody": "9.0.0",
     "@fastify/static": "10.1.5",
     "@grpc/grpc-js": "1.14.5",
+    "@kubernetes/client-node": "2.0.0",
     "@protobuf-ts/grpc-transport": "2.11.1",
     "@smithy/property-provider": "4.5.2",
     "eta": "4.6.0",
