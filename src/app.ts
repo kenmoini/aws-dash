@@ -4,9 +4,14 @@ import fastifyStatic from "@fastify/static";
 import formbody from "@fastify/formbody";
 import Fastify, { LogController, type FastifyBaseLogger, type FastifyError, type FastifyInstance } from "fastify";
 import type { Logger } from "pino";
+import { AwsError, awsErrorFrom } from "./aws/aws-error.js";
 import { systemClock, type Clock } from "./clock.js";
 import { settingsFromEnv, type AppSettings } from "./config.js";
 import { processEnv, type EnvLookup } from "./env.js";
+import { CredentialProvider } from "./identity/credential-provider.js";
+import { InventoryService } from "./inventory/inventory-service.js";
+import type { AwsProvider } from "./inventory/provider.js";
+import { TtlCache } from "./inventory/ttl-cache.js";
 import { CpuLoad } from "./load/cpu-load.js";
 import { MemoryLoad } from "./load/memory-load.js";
 import { createLogger } from "./logging.js";
@@ -14,6 +19,7 @@ import { PUBLIC_DIR, VIEWS_DIR } from "./paths.js";
 import { registerControlRoutes } from "./routes/controls.js";
 import { errorBody } from "./routes/errors.js";
 import { registerHealthRoutes } from "./routes/health.js";
+import { registerInventoryRoutes } from "./routes/inventory.js";
 import { registerPageRoutes } from "./routes/pages.js";
 import { createRenderer, registerRendering } from "./routes/render.js";
 import { registerRuntimeRoutes } from "./routes/runtime.js";
@@ -35,6 +41,10 @@ export interface AppDeps {
   stateService: StateService;
   exit: ProcessExit;
   crashDelayMs: number;
+  credentials: CredentialProvider;
+  /** Builds the live AWS provider on first use; tests inject a fake. */
+  createAwsProvider: () => AwsProvider;
+  inventory: InventoryService;
 }
 
 const pkg = createRequire(import.meta.url)("../package.json") as { version: string };
@@ -47,14 +57,20 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
   const state = overrides.state ?? new RuntimeState(clock);
   const cpu = overrides.cpu ?? new CpuLoad({ maxWorkers: settings.cpuLoadMaxWorkers });
   const memory = overrides.memory ?? new MemoryLoad({ clock });
+  const logger = overrides.logger ?? createLogger(settings);
+  const credentials = overrides.credentials ?? new CredentialProvider(settings, env);
+  const createAwsProvider = overrides.createAwsProvider ?? (() => { throw new AwsError("live AWS provider is not available in this build"); });
+  const inventory = overrides.inventory ?? new InventoryService(createAwsProvider, new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message), logger);
   return {
-    settings, env, clock, state, cpu, memory,
-    logger: overrides.logger ?? createLogger(settings),
+    settings, env, clock, state, cpu, memory, logger,
     fsRoot: overrides.fsRoot ?? "/",
     version: overrides.version ?? pkg.version,
     stateService: overrides.stateService ?? new StateService(state, cpu, memory, settings, clock),
     exit: overrides.exit ?? realExit,
     crashDelayMs: overrides.crashDelayMs ?? 500,
+    credentials,
+    createAwsProvider,
+    inventory,
   };
 }
 
@@ -88,5 +104,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerRuntimeRoutes(app, deps);
   registerPageRoutes(app, deps);
   registerControlRoutes(app, deps);
+  registerInventoryRoutes(app, deps);
   return app;
 }
