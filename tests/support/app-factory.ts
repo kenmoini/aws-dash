@@ -13,6 +13,7 @@ import { fakeCredentialProvider, type FakeCredentialOptions } from "./fake-crede
 import { FakeExit } from "./fake-exit.js";
 import { FakeSts } from "./fake-sts.js";
 import { FakeWorkerFactory } from "./fake-worker-factory.js";
+import { FakeWorkloadApi } from "./fake-workload-api.js";
 
 export interface TestAppOptions {
   env?: Record<string, string>;
@@ -50,6 +51,7 @@ export async function testApp(opts: TestAppOptions = {}) {
   const sts = new FakeSts();
   const accessClients = new FakeAccessCheckClients(sts);
   const imdsFetch = new FakeImdsFetch();
+  const workloadApi = new FakeWorkloadApi();
   const fake = opts.credentials ? fakeCredentialProvider(settings, env, opts.credentials) : undefined;
   const deps = createDeps({
     settings, env, clock, logger: pino({ level: "silent" }), fsRoot: opts.fsRoot ?? "/nonexistent-root",
@@ -59,9 +61,10 @@ export async function testApp(opts: TestAppOptions = {}) {
     identityReadFile: opts.readFile ?? (() => { throw Object.assign(new Error("ENOENT: no token file in tests"), { code: "ENOENT" }); }),
     createAccessCheckClients: () => accessClients,
     imdsFetch: imdsFetch.fn, imdsTimeoutMs: 20,
+    createWorkloadApi: () => workloadApi, spiffeTimeoutMs: 20,
     ...(fake ? { credentials: fake.provider } : {}),
     ...opts.overrides,
   });
   const app = await buildApp(deps);
-  return { app, deps, clock, exit, workers, state, cpu, memory, aws, sts, accessClients, imdsFetch, credentialResolves: () => fake?.counter.resolves ?? 0 };
+  return { app, deps, clock, exit, workers, state, cpu, memory, aws, sts, accessClients, imdsFetch, workloadApi, credentialResolves: () => fake?.counter.resolves ?? 0 };
 }

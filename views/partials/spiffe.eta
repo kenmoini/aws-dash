@@ -1,0 +1,23 @@
+<% const i = it.info, fmt = it.fmt; %>
+<h2>SPIFFE workload identity</h2>
+<% if (!i.available) { %>
+<p class="muted">Unavailable: <%= i.reason %></p>
+<% } else { %>
+<p class="muted">Read live from the SPIRE agent over <code><%= i.socket %></code> (Zero Trust Workload Identity Manager). Raw SVIDs — certificates, keys and tokens — are never displayed.</p>
+<h3>X.509-SVID</h3>
+<% if (i.x509 === null) { %>
+<div class="error"><%= i.x509_error %></div>
+<% } else { %>
+<dl class="kv">
+  <dt>SPIFFE ID</dt><dd><%= i.x509.spiffe_id %><% if (it.token_sub !== null) { %> <span class="badge <%= it.token_sub === i.x509.spiffe_id ? "ok" : "warn" %>"><%= it.token_sub === i.x509.spiffe_id ? "same as the token sub presented to STS" : "differs from the token sub presented to STS" %></span><% } %></dd>
+  <dt>SAN URIs</dt><dd><%= i.x509.san_uris.length ? i.x509.san_uris.join(", ") : "—" %></dd>
+  <dt>Serial</dt><dd><%= i.x509.serial %></dd>
+  <dt>Issuer</dt><dd><%= i.x509.issuer %></dd>
+  <dt>Valid</dt><dd><%= fmt.time(i.x509.not_before) %> → <%= fmt.time(i.x509.not_after) %> (<%= fmt.until(i.x509.not_after, it.now) %>)</dd>
+</dl>
+<% } %>
+<h3>JWT-SVID for audience <code><%= i.jwt.audience %></code></h3>
+<p class="muted">Fetched for display only. The AWS credential path uses the file spiffe-helper writes for the SDK, not this call.</p>
+<%~ include("/partials/claims-table", { summary: i.jwt, now: it.now, fmt }) %>
+<% } %>
+<p class="muted">Checked <%= fmt.time(i.fetched_at) %> · <a href="#" hx-get="/partials/spiffe?refresh=1" hx-target="closest [data-spiffe-panel]">refresh</a></p>

@@ -12,4 +12,8 @@
     <h2>Instance metadata (IMDS)</h2>
     <p class="muted">Loading…</p>
   </section>
+  <section class="card" data-spiffe-panel hx-get="/partials/spiffe" hx-trigger="load">
+    <h2>SPIFFE workload identity</h2>
+    <p class="muted">Loading…</p>
+  </section>
 </div>

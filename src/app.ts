@@ -16,6 +16,8 @@ import { processEnv, type EnvLookup } from "./env.js";
 import { AccessCheckService, createAccessCheckClients, type AccessCheckClients } from "./identity/access-check.js";
 import { CredentialProvider } from "./identity/credential-provider.js";
 import { IdentityService, type StsLike } from "./identity/identity-service.js";
+import { SpiffePanel } from "./identity/spiffe-panel.js";
+import { createWorkloadApi, type WorkloadApiFactory } from "./identity/workload-api.js";
 import { ImdsClient, type ImdsFetch } from "./imds/imds-client.js";
 import { InventoryService } from "./inventory/inventory-service.js";
 import { createLiveAwsProvider } from "./inventory/live-provider.js";
@@ -69,6 +71,10 @@ export interface AppDeps {
   imdsFetch: ImdsFetch;
   imdsTimeoutMs: number;
   imds: ImdsClient;
+  /** Opens a SPIRE Workload API channel for one load; tests inject a fake. */
+  createWorkloadApi: WorkloadApiFactory;
+  spiffeTimeoutMs: number;
+  spiffe: SpiffePanel;
 }
 
 const pkg = createRequire(import.meta.url)("../package.json") as { version: string };
@@ -116,6 +122,12 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     enabled: settings.imdsEnabled, clock, fetchFn: imdsFetch, timeoutMs: imdsTimeoutMs,
     cache: new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message),
   });
+  const createWorkloadApiFn = overrides.createWorkloadApi ?? createWorkloadApi;
+  const spiffeTimeoutMs = overrides.spiffeTimeoutMs ?? 3000;
+  const spiffe = overrides.spiffe ?? new SpiffePanel({
+    socket: settings.spiffeEndpointSocket, audience: settings.spiffeJwtAudience, clock, createApi: createWorkloadApiFn, timeoutMs: spiffeTimeoutMs,
+    cache: new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message),
+  });
   return {
     settings, env, clock, state, cpu, memory, logger,
     fsRoot,
@@ -135,6 +147,9 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     imdsFetch,
     imdsTimeoutMs,
     imds,
+    createWorkloadApi: createWorkloadApiFn,
+    spiffeTimeoutMs,
+    spiffe,
   };
 }
 
