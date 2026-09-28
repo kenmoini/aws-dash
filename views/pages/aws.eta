@@ -1,0 +1,22 @@
+<% layout("/layout", { title: "AWS", nav: "aws" }) %>
+<div class="grid">
+  <section class="card">
+    <div class="header-row">
+      <h2>AWS resources</h2>
+      <button class="secondary" hx-post="/api/aws/refresh" hx-swap="none"
+        hx-on::after-request="document.querySelectorAll('section[data-aws-panel]').forEach(p => htmx.trigger(p, 'refresh'))">Refresh all</button>
+    </div>
+    <dl class="kv">
+      <dt>Region</dt><dd><%= it.fmt.or(it.region, "not set (AWS_REGION)") %></dd>
+      <dt>Auth mode</dt><dd><%= it.auth.mode %> — <%= it.auth.reason %></dd>
+      <dt>Cache TTL</dt><dd><%= it.cache_ttl_seconds %> s</dd>
+    </dl>
+    <p class="muted">Each panel loads and fails independently; a failed refresh keeps the last good data. Only read-only API calls are made.</p>
+  </section>
+<% for (const k of it.kinds) { %>
+  <section class="card" data-aws-panel hx-get="/partials/aws/<%= k.kind %>" hx-trigger="load, refresh">
+    <h2><%= k.title %></h2>
+    <p class="muted">Loading…</p>
+  </section>
+<% } %>
+</div>

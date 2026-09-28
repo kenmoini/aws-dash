@@ -1,0 +1,9 @@
+<% if (it.items.length === 0) { %><p class="muted">None found.</p><% } else { %>
+<div class="table-wrap"><table>
+<thead><tr><th>ID</th><th>Name</th><th>Type</th><th>State</th><th>AZ</th><th>Private IP</th><th>Public IP</th><th>VPC</th><th>Subnet</th><th>Launched</th><th>Instance profile</th></tr></thead>
+<tbody>
+<% for (const i of it.items) { %>
+<tr><td><%= i.id %></td><td><%= it.fmt.or(i.name) %></td><td><%= it.fmt.or(i.type) %></td><td><%= it.fmt.or(i.state) %></td><td><%= it.fmt.or(i.az) %></td><td><%= it.fmt.or(i.private_ip) %></td><td><%= it.fmt.or(i.public_ip) %></td><td><%= it.fmt.or(i.vpc_id) %></td><td><%= it.fmt.or(i.subnet_id) %></td><td><%= it.fmt.time(i.launch_time) %></td><td><%= it.fmt.or(i.iam_profile) %></td></tr>
+<% } %>
+</tbody></table></div>
+<% } %>

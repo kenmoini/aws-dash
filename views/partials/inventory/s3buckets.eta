@@ -1,0 +1,9 @@
+<% if (it.items.length === 0) { %><p class="muted">None found.</p><% } else { %>
+<div class="table-wrap"><table>
+<thead><tr><th>Name</th><th>Region</th><th>Created</th></tr></thead>
+<tbody>
+<% for (const b of it.items) { %>
+<tr><td><%= b.name %></td><td><%= it.fmt.or(b.region) %></td><td><%= it.fmt.time(b.created) %></td></tr>
+<% } %>
+</tbody></table></div>
+<% } %>

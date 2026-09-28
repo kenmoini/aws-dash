@@ -1,0 +1,10 @@
+<% const a = it.items[0]; %>
+<% if (!a) { %><p class="muted">None found.</p><% } else { %>
+<dl class="kv">
+  <dt>Account</dt><dd><%= a.account_id %><% if (a.alias) { %> (<%= a.alias %>)<% } %></dd>
+  <dt>Caller ARN</dt><dd><%= a.arn %></dd>
+  <dt>User ID</dt><dd><%= a.user_id %></dd>
+  <dt>Partition</dt><dd><%= a.partition %></dd>
+  <dt>Region</dt><dd><%= a.region %></dd>
+</dl>
+<% } %>

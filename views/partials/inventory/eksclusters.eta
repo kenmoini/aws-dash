@@ -1,0 +1,9 @@
+<% if (it.items.length === 0) { %><p class="muted">None found.</p><% } else { %>
+<div class="table-wrap"><table>
+<thead><tr><th>Name</th><th>Version</th><th>Status</th><th>Platform</th><th>OIDC issuer</th><th>Endpoint</th><th>Auth mode</th></tr></thead>
+<tbody>
+<% for (const c of it.items) { %>
+<tr><td><%= c.name %></td><td><%= it.fmt.or(c.version) %></td><td><%= it.fmt.or(c.status) %></td><td><%= it.fmt.or(c.platform_version) %></td><td><%= it.fmt.or(c.oidc_issuer) %></td><td><%= c.endpoint_public ? "public" : "" %><%= c.endpoint_public && c.endpoint_private ? " + " : "" %><%= c.endpoint_private ? "private" : "" %></td><td><%= it.fmt.or(c.auth_mode) %></td></tr>
+<% } %>
+</tbody></table></div>
+<% } %>

@@ -1,0 +1,15 @@
+<% const e = it.entry, fmt = it.fmt, items = e.value ? e.value.items : null; %>
+<h2><%= it.title %></h2>
+<% if (e.error !== null) { %>
+<div class="error"><%= e.error %></div>
+<% } %>
+<% if (items !== null) { %>
+<%~ include("/partials/inventory/" + it.kind, { items, fmt }) %>
+<% if (e.value.truncated) { %>
+<p class="warning">Showing the first <%= items.length %> items only.</p>
+<% } %>
+<% } %>
+<p class="muted">
+<% if (e.error !== null && items !== null) { %>Last attempt <%= fmt.time(e.fetched_at) %> failed; showing previously cached data<% } else if (e.error !== null) { %>Last attempt <%= fmt.time(e.fetched_at) %> failed<% } else if (e.fetched_at !== null) { %>Fetched <%= fmt.time(e.fetched_at) %><% } else { %>Never fetched<% } %>
+ · <a href="#" hx-get="/partials/aws/<%= it.kind %>?refresh=1" hx-target="closest [data-aws-panel]">refresh</a>
+</p>

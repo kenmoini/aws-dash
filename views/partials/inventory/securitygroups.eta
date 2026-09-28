@@ -1,0 +1,9 @@
+<% if (it.items.length === 0) { %><p class="muted">None found.</p><% } else { %>
+<div class="table-wrap"><table>
+<thead><tr><th>Group</th><th>Name</th><th>VPC</th><th>Direction</th><th>Protocol</th><th>Ports</th><th>Peer</th></tr></thead>
+<tbody>
+<% for (const r of it.items) { %>
+<tr><td><%= r.group_id %></td><td><%= it.fmt.or(r.group_name) %></td><td><%= it.fmt.or(r.vpc_id) %></td><td><%= r.direction %></td><td><%= r.protocol %></td><td><%= r.ports %></td><td><%= r.peer %></td></tr>
+<% } %>
+</tbody></table></div>
+<% } %>

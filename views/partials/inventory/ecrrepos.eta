@@ -1,0 +1,9 @@
+<% if (it.items.length === 0) { %><p class="muted">None found.</p><% } else { %>
+<div class="table-wrap"><table>
+<thead><tr><th>Name</th><th>URI</th><th>Created</th><th>Tag mutability</th><th>Scan on push</th></tr></thead>
+<tbody>
+<% for (const r of it.items) { %>
+<tr><td><%= r.name %></td><td><%= it.fmt.or(r.uri) %></td><td><%= it.fmt.time(r.created) %></td><td><%= it.fmt.or(r.tag_mutability) %></td><td><%= r.scan_on_push ? "yes" : "no" %></td></tr>
+<% } %>
+</tbody></table></div>
+<% } %>

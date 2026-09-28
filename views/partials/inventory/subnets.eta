@@ -1,0 +1,9 @@
+<% if (it.items.length === 0) { %><p class="muted">None found.</p><% } else { %>
+<div class="table-wrap"><table>
+<thead><tr><th>ID</th><th>Name</th><th>VPC</th><th>CIDR</th><th>AZ</th><th>Free IPs</th><th>Public IP on launch</th></tr></thead>
+<tbody>
+<% for (const s of it.items) { %>
+<tr><td><%= s.id %></td><td><%= it.fmt.or(s.name) %></td><td><%= it.fmt.or(s.vpc_id) %></td><td><%= it.fmt.or(s.cidr) %></td><td><%= it.fmt.or(s.az) %></td><td><%= it.fmt.or(s.available_ips) %></td><td><%= s.map_public_ip ? "yes" : "no" %></td></tr>
+<% } %>
+</tbody></table></div>
+<% } %>

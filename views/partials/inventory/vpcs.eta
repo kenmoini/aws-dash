@@ -1,0 +1,9 @@
+<% if (it.items.length === 0) { %><p class="muted">None found.</p><% } else { %>
+<div class="table-wrap"><table>
+<thead><tr><th>ID</th><th>Name</th><th>CIDR</th><th>Default</th><th>State</th></tr></thead>
+<tbody>
+<% for (const v of it.items) { %>
+<tr><td><%= v.id %></td><td><%= it.fmt.or(v.name) %></td><td><%= it.fmt.or(v.cidr) %></td><td><%= v.is_default ? "yes" : "no" %></td><td><%= it.fmt.or(v.state) %></td></tr>
+<% } %>
+</tbody></table></div>
+<% } %>

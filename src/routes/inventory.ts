@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { AppDeps } from "../app.js";
 import { parseBool } from "../env.js";
-import { isInventoryKind } from "../inventory/kinds.js";
+import { isInventoryKind, kindTitle } from "../inventory/kinds.js";
 import { errorBody } from "./errors.js";
 
 export function isRefresh(req: FastifyRequest): boolean {
@@ -19,5 +19,11 @@ export function registerInventoryRoutes(app: FastifyInstance, deps: AppDeps): vo
   app.post("/api/aws/refresh", (_req, reply) => {
     deps.inventory.invalidateAll();
     return reply.code(204).send();
+  });
+  app.get("/partials/aws/:kind", async (req, reply) => {
+    const { kind } = req.params as { kind: string };
+    if (!isInventoryKind(kind)) return reply.code(404).send(errorBody(`unknown kind '${kind}'`));
+    const entry = await deps.inventory.fetch(kind, isRefresh(req));
+    return reply.partial("partials/panel", { kind, title: kindTitle(kind), entry });
   });
 }
