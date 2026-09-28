@@ -16,6 +16,7 @@ describe("classify", () => {
     [Object.assign(new Error("no creds"), { name: "CredentialsProviderError" }), "credential"],
     [sdkError("ThrottlingException", "x", 400), "error"],
     [Object.assign(new Error("ECONNREFUSED"), { name: "Error", code: "ECONNREFUSED" }), "error"],
+    [sdkError("AccessDenied", "User is not authorized to perform: sts:AssumeRoleWithWebIdentity on resource: arn:aws:iam::123456789012:role/aws-dash-irsa", 403), "credential"],
   ])("%o → %s", (err, result) => {
     expect(classify(err).result).toBe(result);
   });
@@ -70,6 +71,16 @@ describe("access-check matrix", () => {
     const rows = (await app.inject({ url: "/api/access-check" })).json().rows;
     expect(rows[0]).toMatchObject({ action: "sts:GetCallerIdentity", result: "credential", code: "ExpiredTokenException" });
     expect(rows.slice(1).every((r: { result: string; message: string }) => r.result === "skipped" && r.message === "skipped: sts:GetCallerIdentity did not succeed")).toBe(true);
+    expect(Object.keys(accessClients.calls)).toEqual([]);
+  });
+
+  it("classifies a trust-policy AssumeRole denial on the gate as a credential failure, and skips the rest", async () => {
+    const { app, accessClients, sts } = await testApp({ env: ENV, credentials: {} });
+    close = () => app.close();
+    sts.fail("AccessDenied", "User is not authorized to perform: sts:AssumeRoleWithWebIdentity on resource: arn:aws:iam::123456789012:role/aws-dash-irsa", 403);
+    const rows = (await app.inject({ url: "/api/access-check" })).json().rows;
+    expect(rows[0]).toMatchObject({ action: "sts:GetCallerIdentity", result: "credential", code: "AccessDenied" });
+    expect(rows.slice(1).every((r: { result: string }) => r.result === "skipped")).toBe(true);
     expect(Object.keys(accessClients.calls)).toEqual([]);
   });
 

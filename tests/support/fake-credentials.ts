@@ -1,7 +1,8 @@
 import type { AttributedAwsCredentialIdentity } from "@aws-sdk/types";
+import { firstLine } from "../../src/aws/aws-error.js";
 import type { AppSettings } from "../../src/config.js";
 import type { EnvLookup } from "../../src/env.js";
-import { resolveAuthMode, type CredentialSpec } from "../../src/identity/credential-factory.js";
+import { resolveAuthMode, type CredentialResolution, type CredentialSpec } from "../../src/identity/credential-factory.js";
 import { CredentialProvider } from "../../src/identity/credential-provider.js";
 
 export const FAKE_TEMPORARY_CREDENTIALS: AttributedAwsCredentialIdentity = {
@@ -21,10 +22,12 @@ export interface FakeCredentialOptions {
   factoryError?: Error;
 }
 
-/** A CredentialProvider whose spec resolves fixture credentials instead of calling AWS. Counts resolves. */
+/** A CredentialProvider whose spec resolves fixture credentials instead of calling AWS. Counts resolves and, like
+ *  the real factory, records/notifies through the onResolve tap so tests can observe it (e.g. via
+ *  CredentialProvider.lastResolution()/onResolve()). */
 export function fakeCredentialProvider(settings: AppSettings, env: EnvLookup, opts: FakeCredentialOptions = {}) {
   const counter = { resolves: 0 };
-  const provider = new CredentialProvider(settings, env, (s, e) => {
+  const provider = new CredentialProvider(settings, env, (s, e, _sdk, onResolve) => {
     if (opts.factoryError) throw opts.factoryError;
     const selection = resolveAuthMode(s, e);
     return {
@@ -35,7 +38,13 @@ export function fakeCredentialProvider(settings: AppSettings, env: EnvLookup, op
       provider: async () => {
         counter.resolves++;
         const creds = opts.credentials ?? FAKE_TEMPORARY_CREDENTIALS;
-        if (creds instanceof Error) throw creds;
+        if (creds instanceof Error) {
+          const resolution: CredentialResolution = { mode: selection.mode, ok: false, expiration: null, error: firstLine(creds.message), at: new Date() };
+          onResolve?.(resolution);
+          throw creds;
+        }
+        const resolution: CredentialResolution = { mode: selection.mode, ok: true, expiration: creds.expiration ?? null, error: null, at: new Date() };
+        onResolve?.(resolution);
         return creds;
       },
     };

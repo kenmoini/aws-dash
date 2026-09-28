@@ -1,6 +1,7 @@
 import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from "prom-client";
 import type { AccessCheckObserver, AccessCheckRow } from "../identity/access-check.js";
-import type { IdentityObserver, IdentityInfo } from "../identity/identity-service.js";
+import type { CredentialResolution } from "../identity/credential-factory.js";
+import type { IdentityInfo } from "../identity/identity-service.js";
 import type { InventoryObserver } from "../inventory/inventory-service.js";
 import type { InventoryKind } from "../inventory/kinds.js";
 import type { CgroupInfo } from "../runtime/runtime-info.js";
@@ -20,7 +21,7 @@ const MIB = 1024 * 1024;
 const orMinusOne = (v: number | null): number => (v === null ? -1 : v);
 
 /** Prometheus registry for the app. Gauges are computed at scrape time from in-memory state; nothing here calls AWS. */
-export class Metrics implements InventoryObserver, IdentityObserver, AccessCheckObserver {
+export class Metrics implements InventoryObserver, AccessCheckObserver {
   readonly registry = new Registry();
   private readonly fetchDuration: Histogram<"kind">;
   private readonly fetchErrors: Counter<"kind">;
@@ -29,6 +30,7 @@ export class Metrics implements InventoryObserver, IdentityObserver, AccessCheck
   private readonly resolutions: Counter<"mode" | "result">;
   private readonly accessAllowed: Gauge<"action">;
   private identitySource: () => IdentityInfo | null = () => null;
+  private credentialSource: () => CredentialResolution | null = () => null;
 
   constructor(sources: MetricsSources) {
     const self = this;
@@ -58,14 +60,20 @@ export class Metrics implements InventoryObserver, IdentityObserver, AccessCheck
 
     const secondsUntil = (iso: string | null | undefined): number => (iso ? Math.round((new Date(iso).getTime() - sources.now().getTime()) / 1000) : -1);
     new Gauge({
-      name: "aws_dash_credential_expiry_seconds", help: "Seconds until the cached AWS credentials expire; -1 when unknown or non-expiring.", labelNames: ["mode"], registers,
+      name: "aws_dash_credential_expiry_seconds",
+      help: "Seconds until the memoized AWS credentials in use expire; -1 when no credentials have resolved yet or they are non-expiring (e.g. static keys).",
+      labelNames: ["mode"], registers,
       collect() {
-        const info = self.identitySource();
-        this.set({ mode: info?.mode ?? sources.authMode }, secondsUntil(info?.credentials?.expiration));
+        const last = self.credentialSource();
+        const expiration = last?.ok ? last.expiration : null;
+        const seconds = expiration ? Math.round((expiration.getTime() - sources.now().getTime()) / 1000) : -1;
+        this.set({ mode: last?.mode ?? sources.authMode }, seconds);
       },
     });
     new Gauge({
-      name: "aws_dash_token_file_expiry_seconds", help: "Seconds until the web-identity token file expires; -1 when there is no token.", registers,
+      name: "aws_dash_token_file_expiry_seconds",
+      help: "Seconds until the web-identity token file expires, as of the last Identity-tab load; -1 when there is no token or Identity has never been loaded.",
+      registers,
       collect() { this.set(secondsUntil(self.identitySource()?.token?.expires_at)); },
     });
     this.resolutions = new Counter({ name: "aws_dash_credential_resolutions_total", help: "Credential resolutions by mode and result.", labelNames: ["mode", "result"], registers });
@@ -86,6 +94,11 @@ export class Metrics implements InventoryObserver, IdentityObserver, AccessCheck
     this.identitySource = source;
   }
 
+  setCredentialSource(source: () => CredentialResolution | null): void {
+    this.credentialSource = source;
+  }
+
+  /** Driven only by CredentialProvider.onResolve — never by an Identity-tab load directly. */
   resolved(mode: string, ok: boolean): void {
     this.resolutions.inc({ mode, result: ok ? "ok" : "error" });
   }

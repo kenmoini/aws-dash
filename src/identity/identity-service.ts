@@ -64,10 +64,6 @@ export interface StsLike {
   send(command: GetCallerIdentityCommand): Promise<GetCallerIdentityCommandOutput>;
 }
 
-export interface IdentityObserver {
-  resolved(mode: string, ok: boolean): void;
-}
-
 const SOURCE_LABELS: Record<string, string> = {
   g: "environment variables",
   h: "web-identity token file",
@@ -117,7 +113,7 @@ export function flavorOf(spec: Pick<CredentialSpec, "mode" | "container_credenti
     }
     case "pod-identity": {
       const uri = spec.container_credentials_uri ?? "";
-      if (uri.includes("169.254.170.23")) return "EKS Pod Identity";
+      if (uri.includes("169.254.170.23") || uri.includes("[fd00:ec2::23]")) return "EKS Pod Identity";
       if (uri.startsWith("/")) return "ECS task role";
       return "container credentials endpoint";
     }
@@ -139,19 +135,16 @@ export interface IdentityServiceOptions {
   createStsClient: (config: AwsClientDefaults) => StsLike;
   cache: TtlCache;
   readFile?: (path: string) => string;
-  observer?: IdentityObserver;
 }
 
 /** Explains the credential chain end to end; never throws — each section carries its own error. */
 export class IdentityService {
   private static readonly KEY = "identity";
   private readonly readFile: (path: string) => string;
-  private readonly observer: IdentityObserver;
   private stsClient: StsLike | undefined;
 
   constructor(private readonly opts: IdentityServiceOptions) {
     this.readFile = opts.readFile ?? ((path) => { throw new Error(`no readFile configured for ${path}`); });
-    this.observer = opts.observer ?? { resolved: () => undefined };
   }
 
   async get(force = false): Promise<IdentityInfo> {
@@ -220,7 +213,6 @@ export class IdentityService {
   private async resolveCredentials(spec: CredentialSpec, now: Date): Promise<CredentialFacts> {
     try {
       const creds = (await spec.provider()) as AttributedAwsCredentialIdentity;
-      this.observer.resolved(spec.mode, true);
       const expiration = creds.expiration?.toISOString() ?? null;
       return {
         key_prefix: creds.accessKeyId ? creds.accessKeyId.slice(0, 4) : null,
@@ -233,7 +225,6 @@ export class IdentityService {
         error: null,
       };
     } catch (err) {
-      this.observer.resolved(spec.mode, false);
       const error = awsErrorFrom(err);
       this.opts.logger.warn({ mode: spec.mode, error: error.message }, "credential resolution failed");
       return { key_prefix: null, key_id_masked: null, temporary: null, expiration: null, expires_in_seconds: null, account_id: null, source: [], error: error.message };

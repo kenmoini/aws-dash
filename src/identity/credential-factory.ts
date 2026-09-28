@@ -1,7 +1,7 @@
 import { fromEnv, fromHttp, fromIni, fromInstanceMetadata, fromTokenFile } from "@aws-sdk/credential-providers";
 import type { AwsCredentialIdentityProvider } from "@aws-sdk/types";
 import { memoize } from "@smithy/property-provider";
-import { AwsError } from "../aws/aws-error.js";
+import { AwsError, firstLine } from "../aws/aws-error.js";
 import { REQUEST_HANDLER } from "../aws/client-defaults.js";
 import type { AppSettings, AuthMode } from "../config.js";
 import { blank, parseBool, type EnvLookup } from "../env.js";
@@ -20,6 +20,15 @@ const defaultSdk: CredentialSdk = { fromEnv, fromIni, fromTokenFile, fromHttp, f
 export interface CredentialSelection {
   mode: AuthMode;
   reason: string;
+}
+
+/** Recorded whenever the memoized provider actually resolves (or fails to), i.e. not on a memoize cache hit. */
+export interface CredentialResolution {
+  mode: AuthMode;
+  ok: boolean;
+  expiration: Date | null;
+  error: string | null;
+  at: Date;
 }
 
 /** Everything the Identity tab shows about how the app authenticates, plus the SDK provider itself. */
@@ -73,7 +82,12 @@ const NO_CREDENTIALS_HINT =
   "auto: no credentials found (set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, AWS_PROFILE, AWS_WEB_IDENTITY_TOKEN_FILE+AWS_ROLE_ARN, or AWS_CONTAINER_CREDENTIALS_*) and AWS_EC2_METADATA_DISABLED=true — on Kubernetes: is the credentials Secret created and the pod restarted?";
 
 /** Builds the one provider every SDK client shares; throws AwsError naming every missing variable. */
-export function createCredentialSpec(settings: AppSettings, env: EnvLookup, sdk: CredentialSdk = defaultSdk): CredentialSpec {
+export function createCredentialSpec(
+  settings: AppSettings,
+  env: EnvLookup,
+  sdk: CredentialSdk = defaultSdk,
+  onResolve?: (r: CredentialResolution) => void,
+): CredentialSpec {
   const { mode, reason } = resolveAuthMode(settings, env);
   const base = { mode, reason, role_arn: null, role_session_name: null, token_file: null, container_credentials_uri: null, profile: null };
   // The STS client behind fromTokenFile/fromIni (assume-role) otherwise gets no region and no
@@ -151,5 +165,19 @@ export function createCredentialSpec(settings: AppSettings, env: EnvLookup, sdk:
       throw new AwsError(`unsupported AUTH_MODE ${String(never)}`);
     }
   }
-  return { ...spec, provider: memoize(spec.provider, isExpired, requiresRefresh) };
+  // Tap the provider before memoize wraps it, so every real resolution is recorded and a memoize
+  // cache hit (no inner call) is not counted as a resolution.
+  const inner = spec.provider;
+  const tapped: AwsCredentialIdentityProvider = async () => {
+    try {
+      const creds = await inner();
+      onResolve?.({ mode, ok: true, expiration: creds.expiration ?? null, error: null, at: new Date() });
+      return creds;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      onResolve?.({ mode, ok: false, expiration: null, error: firstLine(message), at: new Date() });
+      throw err;
+    }
+  };
+  return { ...spec, provider: memoize(tapped, isExpired, requiresRefresh) };
 }

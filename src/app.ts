@@ -98,9 +98,12 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     settings, env, clock, logger, credentials, createStsClient,
     cache: new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message),
     readFile: identityReadFile,
-    observer: metrics,
   });
   metrics.setIdentitySource(() => identity.peek());
+  // Fed by the shared memoized provider's tap, so every real resolution — from inventory,
+  // access-check or the Identity tab — is recorded, and a scrape never touches AWS.
+  metrics.setCredentialSource(() => credentials.lastResolution());
+  credentials.onResolve((r) => metrics.resolved(r.mode, r.ok));
   const createAccessClients = overrides.createAccessCheckClients ?? createAccessCheckClients;
   const accessCheck = overrides.accessCheck ?? new AccessCheckService({
     settings, clock, logger, credentials, createClients: createAccessClients,

@@ -34,6 +34,7 @@ describe("helpers", () => {
     expect(flavorOf(spec("web-identity"), { sub: "system:serviceaccount:a:b" })).toBe("Kubernetes projected service-account token");
     expect(flavorOf(spec("web-identity"), {})).toBe("OIDC token file");
     expect(flavorOf(spec("pod-identity", { container_credentials_uri: "http://169.254.170.23/v1/credentials" }), {})).toBe("EKS Pod Identity");
+    expect(flavorOf(spec("pod-identity", { container_credentials_uri: "http://[fd00:ec2::23]/v1/credentials" }), {})).toBe("EKS Pod Identity");
     expect(flavorOf(spec("pod-identity", { container_credentials_uri: "/v2/credentials/abc" }), {})).toBe("ECS task role");
     expect(flavorOf(spec("static"), {})).toBe("long-lived IAM user access key");
     expect(flavorOf(spec("profile"), {})).toBe("shared config profile");

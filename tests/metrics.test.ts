@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { settingsFromEnv } from "../src/config.js";
+import type { CredentialProvider } from "../src/identity/credential-provider.js";
+import type { AccountInfo, ListResult } from "../src/inventory/models.js";
 import { testApp } from "./support/app-factory.js";
+import { FakeAwsProvider } from "./support/fake-aws-provider.js";
+import { fakeCredentialProvider } from "./support/fake-credentials.js";
 import { FakeRoot } from "./support/fake-root.js";
 import { makeJwt } from "./support/test-jwt.js";
 
@@ -128,5 +133,50 @@ describe("identity and access-check metrics", () => {
     expect(body).toMatch(/^aws_dash_access_check_allowed\{action="sts:GetCallerIdentity"\} 1$/m);
     expect(body).toMatch(/^aws_dash_access_check_allowed\{action="s3:ListAllMyBuckets"\} 0$/m);
     expect(body).toMatch(/^aws_dash_access_check_allowed\{action="iam:GetRole"\} 1$/m);
+  });
+});
+
+/**
+ * Resolves credentials through the same shared `CredentialProvider` the production inventory path
+ * uses (`createLiveAwsProvider` calls `credentials.provider()`, and the SDK's credential middleware
+ * invokes it on each request), but skips the real AWS SDK/network so the test stays hermetic.
+ */
+class CredentialResolvingAwsProvider extends FakeAwsProvider {
+  constructor(private readonly credentials: CredentialProvider) {
+    super();
+  }
+  override async getAccount(): Promise<ListResult<AccountInfo>> {
+    await this.credentials.provider()();
+    return super.getAccount();
+  }
+}
+
+describe("credential metrics follow real resolutions, not just Identity-tab loads", () => {
+  let close = async () => {};
+  afterEach(() => close());
+  const ENV = { AWS_REGION: "us-east-1", AWS_ACCESS_KEY_ID: "a", AWS_SECRET_ACCESS_KEY: "b" };
+  const env = (name: string) => (ENV as Record<string, string>)[name];
+
+  it("resolves credentials through the inventory path alone, without ever loading /identity", async () => {
+    const fake = fakeCredentialProvider(settingsFromEnv(env), env);
+    const { app } = await testApp({ env: ENV, overrides: { credentials: fake.provider, createAwsProvider: () => new CredentialResolvingAwsProvider(fake.provider) } });
+    close = () => app.close();
+    const res = await app.inject({ url: "/api/aws/account" });
+    expect(res.statusCode).toBe(200);
+    const body = await scrape(app);
+    expect(body).toMatch(/^aws_dash_credential_expiry_seconds\{mode="static"\} 3300$/m);
+    expect(body).toMatch(/^aws_dash_credential_resolutions_total\{mode="static",result="ok"\} 1$/m);
+    expect(fake.counter.resolves).toBe(1);
+  });
+
+  it("does not count a second, TTL-cached inventory load as another resolution", async () => {
+    const fake = fakeCredentialProvider(settingsFromEnv(env), env);
+    const { app } = await testApp({ env: ENV, overrides: { credentials: fake.provider, createAwsProvider: () => new CredentialResolvingAwsProvider(fake.provider) } });
+    close = () => app.close();
+    await app.inject({ url: "/api/aws/account" });
+    await app.inject({ url: "/api/aws/account" });
+    const body = await scrape(app);
+    expect(body).toMatch(/^aws_dash_credential_resolutions_total\{mode="static",result="ok"\} 1$/m);
+    expect(fake.counter.resolves).toBe(1);
   });
 });

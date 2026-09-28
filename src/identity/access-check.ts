@@ -59,6 +59,9 @@ export function classify(err: unknown): { result: AccessCheckResult; code: strin
   const message = firstLine(typeof e.message === "string" ? e.message : String(err));
   const status = e.$metadata?.httpStatusCode;
   if (CREDENTIAL.has(name)) return { result: "credential", code: name, message };
+  // A trust-policy rejection of AssumeRole(WithWebIdentity) surfaces as AccessDenied but is a
+  // credential failure, not a policy denial of the action being probed (mirrors aws-error.ts).
+  if ((DENIED.has(name) || status === 403) && /AssumeRole/.test(message)) return { result: "credential", code: name, message };
   if (DENIED.has(name) || status === 403) return { result: "denied", code: name, message };
   return { result: "error", code: name, message };
 }
