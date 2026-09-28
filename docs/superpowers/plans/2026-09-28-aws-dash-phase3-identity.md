@@ -1583,7 +1583,7 @@ describe("ImdsClient", () => {
   });
 
   it.each([
-    [{ hang: true }, /did not answer within 1s: not running on EC2, or the pod cannot reach IMDS \(hop limit 1, EKS Auto Mode\)/],
+    [{ hang: true }, /did not answer within \d+m?s: not running on EC2, or the pod cannot reach IMDS \(hop limit 1, EKS Auto Mode\)/],
     [{ tokenStatus: 401 }, /^IMDS token request returned 401$/],
     [{ docStatus: 404 }, /^IMDS returned 404$/],
     [{ body: "<html>" }, /^IMDS response is not a JSON object$/],
@@ -1632,7 +1632,7 @@ describe("IMDS routes", () => {
     close = () => app.close();
     imdsFetch.mode = "hang";
     const html = (await app.inject({ url: "/partials/imds" })).body;
-    expect(html).toContain("Unavailable: IMDS did not answer within 1s");
+    expect(html).toContain("Unavailable: IMDS did not answer within 20ms: not running on EC2");
     const off = await testApp({ env: { IMDS_ENABLED: "false" } });
     expect((await off.app.inject({ url: "/partials/imds" })).body).toContain("Unavailable: disabled (IMDS_ENABLED=false)");
     await off.app.close();
@@ -1775,7 +1775,7 @@ export class ImdsClient {
   }
 }
 ```
-(The timeout message must read "within 1s" for the production default; the tests use `timeoutMs: 20` and match the rest of the sentence with a regex, so keep the wording exactly as above.)
+(The timeout message reads "within 1s" for the production default and "within 20ms" under the tests' `timeoutMs: 20`; the tests match accordingly, so keep the wording exactly as above.)
 
 `views/partials/imds.eta` (data: `it.info`):
 ```eta
