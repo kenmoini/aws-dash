@@ -1,0 +1,20 @@
+<% const r = it.report, fmt = it.fmt; const badge = { allowed: "ok", denied: "bad", credential: "bad", error: "warn", skipped: "muted" }; %>
+<h2>Access check</h2>
+<% if (!r.enabled) { %>
+<p class="muted">Disabled (ACCESS_CHECK_ENABLED=false).</p>
+<% } else { %>
+<p class="muted">One minimal read-only call per action, run as <%= fmt.or(r.principal_arn, "the current identity") %>. Detach the read-only policy and re-run to watch the rows flip.</p>
+<% if (r.error !== null) { %>
+<div class="error"><%= r.error %></div>
+<% } %>
+<% if (r.rows.length > 0) { %>
+<div class="table-wrap"><table class="matrix">
+<thead><tr><th>Action</th><th>Service</th><th>Result</th><th>Code</th><th>Message</th><th>ms</th></tr></thead>
+<tbody>
+<% for (const row of r.rows) { %>
+<tr><td><%= row.action %></td><td><%= row.service %></td><td><span class="badge <%= badge[row.result] %>"><%= row.result %></span></td><td><%= fmt.or(row.code) %></td><td><%= fmt.or(row.message) %></td><td><%= row.duration_ms %></td></tr>
+<% } %>
+</tbody></table></div>
+<% } %>
+<p class="muted">Checked <%= fmt.time(r.fetched_at) %> · <a href="#" hx-get="/partials/access-check?refresh=1" hx-target="closest [data-access-check-panel]">re-run</a></p>
+<% } %>

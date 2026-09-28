@@ -13,6 +13,7 @@ import { awsErrorFrom } from "./aws/aws-error.js";
 import { systemClock, type Clock } from "./clock.js";
 import { settingsFromEnv, type AppSettings } from "./config.js";
 import { processEnv, type EnvLookup } from "./env.js";
+import { AccessCheckService, createAccessCheckClients, type AccessCheckClients } from "./identity/access-check.js";
 import { CredentialProvider } from "./identity/credential-provider.js";
 import { IdentityService, type StsLike } from "./identity/identity-service.js";
 import { InventoryService } from "./inventory/inventory-service.js";
@@ -61,6 +62,9 @@ export interface AppDeps {
   createStsClient: (config: AwsClientDefaults) => StsLike;
   identityReadFile: (path: string) => string;
   identity: IdentityService;
+  /** Builds the access-check clients on first use; tests inject a fake. */
+  createAccessCheckClients: (config: AwsClientDefaults) => AccessCheckClients;
+  accessCheck: AccessCheckService;
 }
 
 const pkg = createRequire(import.meta.url)("../package.json") as { version: string };
@@ -91,6 +95,11 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     cache: new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message),
     readFile: identityReadFile,
   });
+  const createAccessClients = overrides.createAccessCheckClients ?? createAccessCheckClients;
+  const accessCheck = overrides.accessCheck ?? new AccessCheckService({
+    settings, clock, logger, credentials, createClients: createAccessClients,
+    cache: new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message),
+  });
   return {
     settings, env, clock, state, cpu, memory, logger,
     fsRoot,
@@ -105,6 +114,8 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     createStsClient,
     identityReadFile,
     identity,
+    createAccessCheckClients: createAccessClients,
+    accessCheck,
   };
 }
 

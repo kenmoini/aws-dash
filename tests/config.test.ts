@@ -44,6 +44,10 @@ describe("settingsFromEnv", () => {
     expect(settingsFromEnv(env({ AWS_REGION: " ", AWS_DEFAULT_REGION: "us-west-2" })).region).toBe("us-west-2");
     expect(settingsFromEnv(env({ AUTH_MODE: "" })).authMode).toBe("auto");
   });
+  it("parses ACCESS_CHECK_ACTIONS as a trimmed, comma-separated list", () => {
+    expect(settingsFromEnv(env({ ACCESS_CHECK_ACTIONS: " ec2:DescribeVpcs ,s3:ListAllMyBuckets" })).accessCheckActions).toEqual(["ec2:DescribeVpcs", "s3:ListAllMyBuckets"]);
+    expect(settingsFromEnv(env({})).accessCheckActions).toBeUndefined();
+  });
   it.each([
     [{ AUTH_MODE: "magic" }, "AUTH_MODE must be one of auto, static, profile, web-identity, pod-identity, imds, got 'magic'"],
     [{ PORT: "http" }, "PORT must be an integer between 1 and 65535, got 'http'"],
@@ -51,6 +55,7 @@ describe("settingsFromEnv", () => {
     [{ CONTROLS_ENABLED: "sometimes" }, "CONTROLS_ENABLED must be true or false, got 'sometimes'"],
     [{ LOG_LEVEL: "loud" }, "LOG_LEVEL must be one of fatal, error, warn, info, debug, trace, silent, got 'loud'"],
     [{ MEMORY_LOAD_MAX_MIB: "0" }, "MEMORY_LOAD_MAX_MIB must be a positive integer, got '0'"],
+    [{ ACCESS_CHECK_ACTIONS: "ec2:DescribeVpcs,ec2:Nope" }, "ACCESS_CHECK_ACTIONS must be a comma-separated subset of sts:GetCallerIdentity, iam:ListAccountAliases, ec2:DescribeRegions, ec2:DescribeInstances, ec2:DescribeVpcs, ec2:DescribeSubnets, ec2:DescribeSecurityGroups, s3:ListAllMyBuckets, eks:ListClusters, ecr:DescribeRepositories, iam:GetRole, got 'ec2:Nope'"],
   ])("rejects %o", (vars, message) => {
     expect(() => settingsFromEnv(env(vars))).toThrow(new ConfigError(message));
   });

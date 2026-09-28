@@ -29,6 +29,7 @@ td { border-bottom: 1px solid var(--line); padding: 6px 8px; font-family: var(--
 .badge.ok { background: #dff6dd; color: var(--ok); }
 .badge.bad { background: #fde7e9; color: var(--bad); }
 .badge.warn { background: #fff4ce; color: var(--warn); }
+.badge.muted { background: #eceef1; color: var(--muted); }
 .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
 .control { border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
 button { font: inherit; padding: 6px 14px; border-radius: 4px; border: 1px solid var(--accent-dark); background: var(--accent); color: #1b1b1f; font-weight: 600; cursor: pointer; }

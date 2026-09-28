@@ -1,5 +1,6 @@
 import os from "node:os";
 import { blank, parseBool, type EnvLookup } from "./env.js";
+import { ACCESS_CHECK_ACTION_NAMES, isAccessCheckAction, type AccessCheckAction } from "./identity/access-check-actions.js";
 
 export const AUTH_MODES = ["auto", "static", "profile", "web-identity", "pod-identity", "imds"] as const;
 export type AuthMode = (typeof AUTH_MODES)[number];
@@ -23,6 +24,7 @@ export interface AppSettings {
   readonly k8sInfoEnabled: boolean;
   readonly metricsEnabled: boolean;
   readonly accessCheckEnabled: boolean;
+  readonly accessCheckActions: readonly AccessCheckAction[] | undefined;
   readonly spiffeEndpointSocket: string | undefined;
   readonly spiffeJwtAudience: string;
   readonly memoryLoadMaxMib: number;
@@ -44,6 +46,7 @@ export function settingsFromEnv(env: EnvLookup): AppSettings {
     k8sInfoEnabled: bool("K8S_INFO_ENABLED", env("K8S_INFO_ENABLED"), true),
     metricsEnabled: bool("METRICS_ENABLED", env("METRICS_ENABLED"), true),
     accessCheckEnabled: bool("ACCESS_CHECK_ENABLED", env("ACCESS_CHECK_ENABLED"), true),
+    accessCheckActions: actionList("ACCESS_CHECK_ACTIONS", env("ACCESS_CHECK_ACTIONS")),
     spiffeEndpointSocket: blank(env("SPIFFE_ENDPOINT_SOCKET")),
     spiffeJwtAudience: blank(env("SPIFFE_JWT_AUDIENCE")) ?? "aws-dash",
     memoryLoadMaxMib: positiveInt("MEMORY_LOAD_MAX_MIB", env("MEMORY_LOAD_MAX_MIB"), 4096),
@@ -95,4 +98,13 @@ function intIn(name: string, value: string | undefined, fallback: number, min: n
   const n = parseInteger(value);
   if (n === undefined || n < min || n > max) throw invalid(name, value, `an integer between ${min} and ${max}`);
   return n;
+}
+
+function actionList(name: string, value: string | undefined): readonly AccessCheckAction[] | undefined {
+  const v = blank(value);
+  if (v === undefined) return undefined;
+  const names = v.split(",").map((s) => s.trim()).filter((s) => s !== "");
+  const bad = names.find((n) => !isAccessCheckAction(n));
+  if (bad !== undefined) throw invalid(name, bad, `a comma-separated subset of ${ACCESS_CHECK_ACTION_NAMES.join(", ")}`);
+  return names.filter(isAccessCheckAction);
 }

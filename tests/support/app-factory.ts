@@ -5,6 +5,7 @@ import { CpuLoad } from "../../src/load/cpu-load.js";
 import { MemoryLoad } from "../../src/load/memory-load.js";
 import { RuntimeState } from "../../src/state/runtime-state.js";
 import { StateService } from "../../src/state/state-service.js";
+import { FakeAccessCheckClients } from "./fake-access-clients.js";
 import { FakeAwsProvider } from "./fake-aws-provider.js";
 import { FakeClock } from "./fake-clock.js";
 import { fakeCredentialProvider, type FakeCredentialOptions } from "./fake-credentials.js";
@@ -33,6 +34,7 @@ export async function testApp(opts: TestAppOptions = {}) {
   const memory = new MemoryLoad({ chunkMib: 1, clock });
   const aws = new FakeAwsProvider();
   const sts = new FakeSts();
+  const accessClients = new FakeAccessCheckClients(sts);
   const fake = opts.credentials ? fakeCredentialProvider(settings, env, opts.credentials) : undefined;
   const deps = createDeps({
     settings, env, clock, logger: pino({ level: "silent" }), fsRoot: opts.fsRoot ?? "/nonexistent-root",
@@ -40,9 +42,10 @@ export async function testApp(opts: TestAppOptions = {}) {
     exit: exit.fn, crashDelayMs: 10, createAwsProvider: () => aws,
     createStsClient: () => sts,
     identityReadFile: opts.readFile ?? (() => { throw Object.assign(new Error("ENOENT: no token file in tests"), { code: "ENOENT" }); }),
+    createAccessCheckClients: () => accessClients,
     ...(fake ? { credentials: fake.provider } : {}),
     ...opts.overrides,
   });
   const app = await buildApp(deps);
-  return { app, deps, clock, exit, workers, state, cpu, memory, aws, sts, credentialResolves: () => fake?.counter.resolves ?? 0 };
+  return { app, deps, clock, exit, workers, state, cpu, memory, aws, sts, accessClients, credentialResolves: () => fake?.counter.resolves ?? 0 };
 }
