@@ -9,9 +9,9 @@ The AWS sibling of [gcp-dash](https://github.com/kenmoini/gcp-dash) and [azure-d
 
 ## Status
 
-Phase 3: the Identity tab (decoded token, STS identity, credential facts, access-check matrix, IMDS card), identity
-metrics, and the EKS IRSA / EKS Pod Identity / OpenShift native-issuer overlays. The SPIFFE panel, Kubernetes card
-and ZTWIM overlay are Phase 4.
+Phase 4: the SPIFFE card (X.509 and JWT SVIDs read from the SPIRE Workload API, display only), the Kubernetes card
+(this pod, restarts, OOMKilled, the node), the pod-reader Role and node-reader component, and the ZTWIM overlay
+with a spiffe-helper native sidecar. Phase 5 is documentation.
 
 ## Run locally
 
@@ -45,14 +45,18 @@ scripts/run-podman.sh   # --cpus 1 --memory 512m; allocate >512 MiB with the mem
 | GET | `/aws` | AWS page: header card + 8 lazy panels |
 | GET | `/api/aws/{kind}[?refresh=true]` | `{kind, fetched_at, error, items, truncated}`; kinds: account, instances, vpcs, subnets, securitygroups, s3buckets, eksclusters, ecrrepos |
 | GET | `/partials/aws/{kind}[?refresh=1]` | htmx panel |
-| POST | `/api/aws/refresh` | drop every cached kind, plus the identity, access-check and IMDS caches → 204 |
-| GET | `/identity` | Identity page: auth-mode card, decoded token, STS identity, credential facts, access-check matrix, IMDS card |
+| POST | `/api/aws/refresh` | drop every cached kind, plus the identity, access-check and IMDS caches, and spiffe and k8s → 204 |
+| GET | `/identity` | Identity page: auth-mode card, decoded token, STS identity, credential facts, access-check matrix, IMDS card, SPIFFE card, Kubernetes card |
 | GET | `/api/identity[?refresh=true]` | `{mode, reason, flavor, …, token, sts, credentials, fetched_at}` (spec §5) — how the app authenticates, the decoded token, what STS returned, and credential facts |
 | GET | `/partials/identity` | htmx fragment |
 | GET | `/api/access-check[?refresh=true]` | `{enabled, fetched_at, principal_arn, error, rows[{action, service, result, code, message, duration_ms}]}` |
 | GET | `/partials/access-check` | htmx fragment |
 | GET | `/api/imds[?refresh=true]` | `{available, reason, instance, fetched_at}` |
 | GET | `/partials/imds` | htmx fragment |
+| GET | `/api/spiffe[?refresh=true]` | `{available, reason, socket, x509{spiffe_id, san_uris, serial, issuer, not_before, not_after, expires_in_seconds}, x509_error, jwt{claims, issued_at, expires_at, error, spiffe_id, audience}, fetched_at}` |
+| GET | `/partials/spiffe` | htmx fragment |
+| GET | `/api/k8s[?refresh=true]` | `{available, reason, pod{name, namespace, node, phase, started_at, service_account, qos_class, containers[…]}, node{…}, node_error, fetched_at}` |
+| GET | `/partials/k8s` | htmx fragment |
 | GET | `/metrics` | Prometheus text; 404 when `METRICS_ENABLED=false` |
 
 Requests with `HX-Request: true` get HTML fragments; everything else gets JSON. Bad input → 422 `{"detail":…}`;
@@ -69,13 +73,15 @@ all controls → 403 when `CONTROLS_ENABLED=false`.
 | `CPU_LOAD_MAX_WORKERS` | CPU count | upper bound for the CPU control |
 | `AUTH_MODE` | `auto` | `auto\|static\|profile\|web-identity\|pod-identity\|imds` — `auto` follows the SDK chain order |
 | `AWS_REGION` | — | falls back to `AWS_DEFAULT_REGION`; required for the AWS tab |
-| `AWS_CACHE_TTL_SECONDS` | `60` | how long a cached result — inventory, identity, access-check or IMDS — is served before it's refetched |
+| `AWS_CACHE_TTL_SECONDS` | `60` | how long a cached result — inventory, identity, access-check, IMDS, SPIFFE, Kubernetes — is served before it's refetched |
 | `AWS_DEBUG` | `false` | logs SDK request metadata |
 | `METRICS_ENABLED` | `true` | `false` → `/metrics` returns 404 |
 | `IMDS_ENABLED` | `true` | `false` → the IMDS card renders an "Unavailable: disabled…" state and skips the probe, instead of being hidden |
 | `ACCESS_CHECK_ENABLED` | `true` | `false` → the access-check matrix renders a "Disabled (…)" state instead of being hidden |
 | `ACCESS_CHECK_ACTIONS` | unset = all | comma-separated subset of the 11 access-check actions (see `src/identity/access-check-actions.ts`); `sts:GetCallerIdentity` always runs |
-| `K8S_INFO_ENABLED`, `SPIFFE_ENDPOINT_SOCKET`, `SPIFFE_JWT_AUDIENCE` | see `src/config.ts` | parsed now, used from Phase 4 onward |
+| `K8S_INFO_ENABLED` | `true` | `false` → the Kubernetes card renders a disabled state and never builds an API client |
+| `SPIFFE_ENDPOINT_SOCKET` | unset | e.g. `unix:///spiffe-workload-api/spire-agent.sock`; unset → the SPIFFE card says so and never opens the socket |
+| `SPIFFE_JWT_AUDIENCE` | `aws-dash` | audience of the *display* JWT-SVID fetch — the credential path's audience is spiffe-helper's `helper.conf` |
 
 Downward API variables shown on the Runtime tab: `POD_NAME`, `POD_NAMESPACE`, `NODE_NAME`, `POD_IP`, `SERVICE_ACCOUNT`.
 
@@ -108,7 +114,8 @@ are gauges/counters computed from cached state at scrape time — a scrape never
 
 See [deploy/README.md](deploy/README.md). Quick start on any cluster: `kubectl apply -k deploy/kubernetes`. EKS and
 OpenShift workload-identity overlays: [`deploy/eks-irsa`](deploy/eks-irsa/README.md),
-[`deploy/eks-pod-identity`](deploy/eks-pod-identity/README.md), [`deploy/openshift-native-oidc`](deploy/openshift-native-oidc/README.md).
+[`deploy/eks-pod-identity`](deploy/eks-pod-identity/README.md), [`deploy/openshift-native-oidc`](deploy/openshift-native-oidc/README.md),
+[`deploy/ztwim`](deploy/ztwim/README.md).
 
 ## Permissions
 
@@ -116,6 +123,9 @@ The AWS tab needs nothing beyond [`deploy/aws/aws-dash-readonly-policy.json`](de
 attached to whichever principal `AUTH_MODE` resolves to. `sts:GetCallerIdentity` (the Account panel's identity
 check) needs no IAM permission at all; every other panel fails closed with an actionable hint — keeping its
 last successfully fetched data — when the policy is missing or incomplete.
+
+The Kubernetes card needs the Role in `deploy/kubernetes/rbac.yaml` (`get pods`) and, for the node section, the
+`node-reader` component (`get nodes`).
 
 ## Demo
 
@@ -129,6 +139,8 @@ last successfully fetched data — when the policy is missing or incomplete.
 7. Scrape `/metrics` (e.g. `curl -s localhost:8080/metrics | grep aws_dash_`) while doing the above.
 8. Open Identity: read the mode, the decoded token's iss/sub/aud, and what STS returned — the raw token is never shown.
 9. Detach the read-only policy and click re-run on the access check: every row except sts:GetCallerIdentity flips to denied; re-attach and re-run.
+10. Trigger the memory control past the limit, wait for the restart, then open Identity → Kubernetes: the container's last state reads OOMKilled (exit 137) and the restart count went up.
+11. On the ztwim overlay, compare the SPIFFE card's X.509 SPIFFE ID with the Identity card's sub — the badge says they match — and reload after five minutes to watch iat/exp advance.
 
 ## Security
 
