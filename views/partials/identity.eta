@@ -1,0 +1,60 @@
+<% const i = it.info, fmt = it.fmt; %>
+<% const captions = {
+  "EKS IRSA": "Issued by the EKS cluster's OIDC provider for this pod's service account; STS checks its iss, sub and aud against the role's trust policy.",
+  "SPIFFE JWT-SVID (spiffe-helper)": "Issued by SPIRE (Zero Trust Workload Identity Manager) and written to a file by spiffe-helper; STS trusts it through an IAM OIDC provider that points at the SPIRE discovery endpoint.",
+  "Kubernetes projected service-account token": "Issued by the cluster's own service-account issuer, which must be publicly discoverable for STS to validate it.",
+  "EKS Pod Identity": "Issued by EKS for Pod Identity; the SDK exchanges it with the eks-pod-identity-agent on the node, never with STS directly.",
+}; %>
+<% const legend = i.credentials && i.credentials.key_prefix === "ASIA" ? "ASIA = temporary" : i.credentials && i.credentials.key_prefix === "AKIA" ? "AKIA = long-lived IAM user key" : null; %>
+<h2>Workload identity</h2>
+<% if (i.error !== null) { %>
+<div class="error"><%= i.error %></div>
+<% } %>
+<h3>How the app authenticates</h3>
+<dl class="kv">
+  <dt>Auth mode</dt><dd><%= i.mode %></dd>
+  <dt>Why</dt><dd><%= i.reason %></dd>
+  <dt>Flavor</dt><dd><%= fmt.or(i.flavor) %></dd>
+  <dt>Credential</dt><dd><%= fmt.or(i.credential_type) %></dd>
+  <dt>Region</dt><dd><%= fmt.or(i.region, "not set (AWS_REGION)") %></dd>
+  <dt>Role ARN</dt><dd><%= fmt.or(i.role_arn) %></dd>
+  <dt>Session name</dt><dd><%= fmt.or(i.role_session_name) %></dd>
+  <dt>Token file</dt><dd><%= fmt.or(i.token_file) %></dd>
+  <dt>Credentials URI</dt><dd><%= fmt.or(i.container_credentials_uri) %></dd>
+  <dt>Profile</dt><dd><%= fmt.or(i.profile) %></dd>
+</dl>
+<% if (i.token !== null) { %>
+<h3>Token presented to STS</h3>
+<p class="muted"><%= captions[i.flavor] || "Presented to STS for AssumeRoleWithWebIdentity; STS matches iss, sub and aud against the role's trust policy." %></p>
+<%~ include("/partials/claims-table", { summary: i.token, now: it.now, fmt }) %>
+<% } %>
+<% if (i.sts !== null || i.credentials !== null) { %>
+<h3>What AWS returned</h3>
+<% if (i.sts !== null) { %>
+<% if (i.sts.error !== null) { %>
+<div class="error"><%= i.sts.error %><% if (i.sts.hint !== null) { %> — <%= i.sts.hint %><% } %></div>
+<% } else { %>
+<dl class="kv">
+  <dt>Account</dt><dd><%= fmt.or(i.sts.account) %></dd>
+  <dt>Caller ARN</dt><dd><%= fmt.or(i.sts.arn) %></dd>
+  <dt>User ID</dt><dd><%= fmt.or(i.sts.user_id) %></dd>
+  <dt>Principal</dt><dd><%= fmt.or(i.sts.principal_type) %><% if (i.sts.role_name) { %> · role <%= i.sts.role_name %><% } %><% if (i.sts.session_name) { %> · session <%= i.sts.session_name %><% } %></dd>
+</dl>
+<% } %>
+<% } %>
+<% if (i.credentials !== null) { %>
+<% if (i.credentials.error !== null) { %>
+<div class="error"><%= i.credentials.error %></div>
+<% } else { %>
+<dl class="kv">
+  <dt>Access key</dt><dd><%= fmt.or(i.credentials.key_id_masked) %><% if (legend) { %> (<%= legend %>)<% } %></dd>
+  <dt>Temporary</dt><dd><%= i.credentials.temporary === null ? "—" : i.credentials.temporary ? "yes" : "no" %></dd>
+  <dt>Expires</dt><dd><% if (i.credentials.expiration !== null) { %><%= fmt.time(i.credentials.expiration) %> (<%= fmt.until(i.credentials.expiration, it.now) %>)<% } else { %>never (long-lived)<% } %></dd>
+  <dt>Account</dt><dd><%= fmt.or(i.credentials.account_id) %></dd>
+  <dt>SDK source</dt><dd><%= i.credentials.source.length ? i.credentials.source.join("; ") : "—" %></dd>
+</dl>
+<p class="muted">SDK source ids are internal and may change between SDK releases.</p>
+<% } %>
+<% } %>
+<% } %>
+<p class="muted">Checked <%= fmt.time(i.fetched_at) %>. Raw tokens are never displayed. · <a href="#" hx-get="/partials/identity?refresh=1" hx-target="closest [data-identity-panel]">refresh</a></p>

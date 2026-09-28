@@ -27,6 +27,7 @@ import { PUBLIC_DIR, VIEWS_DIR } from "./paths.js";
 import { registerControlRoutes } from "./routes/controls.js";
 import { errorBody } from "./routes/errors.js";
 import { registerHealthRoutes } from "./routes/health.js";
+import { registerIdentityRoutes } from "./routes/identity.js";
 import { registerInventoryRoutes } from "./routes/inventory.js";
 import { registerHttpMetricsHook, registerMetricsRoutes } from "./routes/metrics.js";
 import { registerPageRoutes } from "./routes/pages.js";
@@ -139,6 +140,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerPageRoutes(app, deps);
   registerControlRoutes(app, deps);
   registerInventoryRoutes(app, deps);
+  registerIdentityRoutes(app, deps);
   registerMetricsRoutes(app, deps);
   return app;
 }

@@ -1,0 +1,7 @@
+<% layout("/layout", { title: "Identity", nav: "identity" }) %>
+<div class="grid">
+  <section class="card" data-identity-panel hx-get="/partials/identity" hx-trigger="load">
+    <h2>Workload identity</h2>
+    <p class="muted">Loading…</p>
+  </section>
+</div>

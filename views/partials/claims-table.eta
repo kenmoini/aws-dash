@@ -1,0 +1,13 @@
+<% const s = it.summary, fmt = it.fmt; %>
+<% if (s.error !== null) { %>
+<div class="error"><%= s.error %></div>
+<% } else { %>
+<dl class="kv">
+<% for (const [name, value] of Object.entries(s.claims)) { %>
+  <dt><%= name %></dt><dd><%= value %></dd>
+<% } %>
+<% if (s.expires_at !== null) { %>
+  <dt>expires</dt><dd><%= fmt.time(s.expires_at) %> (<%= fmt.until(s.expires_at, it.now) %>)</dd>
+<% } %>
+</dl>
+<% } %>

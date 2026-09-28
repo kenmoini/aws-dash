@@ -12,4 +12,5 @@ export function registerPageRoutes(app: FastifyInstance, deps: AppDeps): void {
       cache_ttl_seconds: deps.settings.cacheTtlSeconds,
       kinds: INVENTORY_KINDS,
     }));
+  app.get("/identity", (_req, reply) => reply.page("pages/identity", {}));
 }
