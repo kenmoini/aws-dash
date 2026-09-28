@@ -9,14 +9,15 @@ The AWS sibling of [gcp-dash](https://github.com/kenmoini/gcp-dash) and [azure-d
 
 ## Status
 
-Phase 1: Runtime tab, five controls, health probes, container image, CI, `kubernetes` and `openshift` overlays.
-The AWS and Identity tabs are not implemented yet (the nav links 404).
+Phase 2: the AWS tab (eight read-only inventory panels), explicit credential-mode selection, and Prometheus
+`/metrics`. The Identity tab is not implemented yet (its nav link 404s).
 
 ## Run locally
 
 ```bash
 npm install
 npm run dev            # http://localhost:8080 — JSON logs; pipe through `npx pino-pretty` for colour
+AWS_PROFILE=<profile> AWS_REGION=us-east-1 npm run dev   # AWS tab with your local credentials
 npm test               # vitest; nothing touches the network
 npm run typecheck
 ```
@@ -40,6 +41,11 @@ scripts/run-podman.sh   # --cpus 1 --memory 512m; allocate >512 MiB with the mem
 | POST | `/controls/cpu` | `enabled`, `workers` 1–64 (clamped to cores) |
 | POST | `/controls/memory` | `enabled`, `mib` 1–`MEMORY_LOAD_MAX_MIB`; 409 if already active |
 | POST | `/controls/crash` | `exit_code` 0–255 → 202, exits 500 ms later |
+| GET | `/aws` | AWS page: header card + 8 lazy panels |
+| GET | `/api/aws/{kind}[?refresh=true]` | `{kind, fetched_at, error, items, truncated}`; kinds: account, instances, vpcs, subnets, securitygroups, s3buckets, eksclusters, ecrrepos |
+| GET | `/partials/aws/{kind}[?refresh=1]` | htmx panel |
+| POST | `/api/aws/refresh` | drop every cached kind → 204 |
+| GET | `/metrics` | Prometheus text; 404 when `METRICS_ENABLED=false` |
 
 Requests with `HX-Request: true` get HTML fragments; everything else gets JSON. Bad input → 422 `{"detail":…}`;
 all controls → 403 when `CONTROLS_ENABLED=false`.
@@ -53,13 +59,39 @@ all controls → 403 when `CONTROLS_ENABLED=false`.
 | `LOG_LEVEL` | `info` | pino level |
 | `MEMORY_LOAD_MAX_MIB` | `4096` | upper bound for the memory control |
 | `CPU_LOAD_MAX_WORKERS` | CPU count | upper bound for the CPU control |
-| `AUTH_MODE`, `AWS_REGION`, `AWS_CACHE_TTL_SECONDS`, `AWS_DEBUG`, `IMDS_ENABLED`, `K8S_INFO_ENABLED`, `METRICS_ENABLED`, `ACCESS_CHECK_ENABLED`, `SPIFFE_ENDPOINT_SOCKET`, `SPIFFE_JWT_AUDIENCE` | see `src/config.ts` | parsed now, used from Phase 2 onward |
+| `AUTH_MODE` | `auto` | `auto\|static\|profile\|web-identity\|pod-identity\|imds` — `auto` follows the SDK chain order |
+| `AWS_REGION` | — | falls back to `AWS_DEFAULT_REGION`; required for the AWS tab |
+| `AWS_CACHE_TTL_SECONDS` | `60` | how long an inventory kind's result is served from cache before it's refetched |
+| `AWS_DEBUG` | `false` | logs SDK request metadata |
+| `METRICS_ENABLED` | `true` | `false` → `/metrics` returns 404 |
+| `IMDS_ENABLED`, `K8S_INFO_ENABLED`, `ACCESS_CHECK_ENABLED`, `SPIFFE_ENDPOINT_SOCKET`, `SPIFFE_JWT_AUDIENCE` | see `src/config.ts` | parsed now, used from Phase 3 onward |
 
 Downward API variables shown on the Runtime tab: `POD_NAME`, `POD_NAMESPACE`, `NODE_NAME`, `POD_IP`, `SERVICE_ACCOUNT`.
+
+### Credential modes
+
+`AUTH_MODE=auto` (the default) picks a mode by checking the same signals the AWS SDK's default provider chain
+does, in this order, so the label always matches what the SDK would actually do; any mode can also be forced
+explicitly by setting `AUTH_MODE`.
+
+| Mode | Selected in `auto` when | SDK provider |
+|---|---|---|
+| `static` | `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are both set | `fromEnv` |
+| `profile` | `AWS_PROFILE` is set | `fromIni` |
+| `web-identity` | `AWS_WEB_IDENTITY_TOKEN_FILE` and `AWS_ROLE_ARN` are both set | `fromTokenFile` → `sts:AssumeRoleWithWebIdentity` |
+| `pod-identity` | `AWS_CONTAINER_CREDENTIALS_FULL_URI` or `AWS_CONTAINER_CREDENTIALS_RELATIVE_URI` is set | `fromHttp` (container credentials endpoint) |
+| `imds` | none of the above matched (the fallback) | `fromInstanceMetadata` (the node's/instance's role) |
 
 ## Deploy
 
 See [deploy/README.md](deploy/README.md). Quick start on any cluster: `kubectl apply -k deploy/kubernetes`.
+
+## Permissions
+
+The AWS tab needs nothing beyond [`deploy/aws/aws-dash-readonly-policy.json`](deploy/aws/aws-dash-readonly-policy.json)
+attached to whichever principal `AUTH_MODE` resolves to. `sts:GetCallerIdentity` (the Account panel's identity
+check) needs no IAM permission at all; every other panel fails closed with an actionable hint — keeping its
+last successfully fetched data — when the policy is missing or incomplete.
 
 ## Demo (Phase 1)
 
@@ -68,6 +100,9 @@ See [deploy/README.md](deploy/README.md). Quick start on any cluster: `kubectl a
 3. **CPU load** → `kubectl top pod -n aws-dash`.
 4. **Memory load** above the 512 Mi limit → `kubectl -n aws-dash get pod -o jsonpath='{.items[0].status.containerStatuses[0].lastState}'` shows `OOMKilled`.
 5. **Crash** with exit code 3 → `lastState.terminated.exitCode: 3` and the restart count goes up.
+6. Detach the read-only policy and click "Refresh all" → every panel shows an AccessDenied hint but keeps its
+   last data; re-attach to recover.
+7. Scrape `/metrics` (e.g. `curl -s localhost:8080/metrics | grep aws_dash_`) while doing the above.
 
 ## Security
 
