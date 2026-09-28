@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { testApp } from "./support/app-factory.js";
 import { FakeRoot } from "./support/fake-root.js";
+import { makeJwt } from "./support/test-jwt.js";
 
 const scrape = async (app: Awaited<ReturnType<typeof testApp>>["app"]) => {
   const res = await app.inject({ url: "/metrics" });
@@ -83,5 +84,49 @@ describe("/metrics", () => {
     const res = await app.inject({ url: "/metrics" });
     expect(res.statusCode).toBe(404);
     expect(res.json()).toEqual({ detail: "metrics are disabled (METRICS_ENABLED=false)" });
+  });
+});
+
+describe("identity and access-check metrics", () => {
+  let close = async () => {};
+  afterEach(() => close());
+  const NOW = 1_767_225_600;
+  const TOKEN = makeJwt({ iss: "https://oidc.eks.us-east-1.amazonaws.com/id/ABC", sub: "system:serviceaccount:aws-dash:aws-dash", aud: "sts.amazonaws.com", iat: NOW, exp: NOW + 3600 });
+  const WEB = { AWS_REGION: "us-east-1", AWS_WEB_IDENTITY_TOKEN_FILE: "/var/run/secrets/aws/token", AWS_ROLE_ARN: "arn:aws:iam::123456789012:role/aws-dash-irsa" };
+
+  it("report -1 until identity has been loaded, then real countdowns, without touching AWS or the token file on scrape", async () => {
+    let reads = 0;
+    const { app, sts } = await testApp({ env: WEB, credentials: { spec: { token_file: WEB.AWS_WEB_IDENTITY_TOKEN_FILE } }, readFile: () => { reads++; return TOKEN; } });
+    close = () => app.close();
+    let body = await scrape(app);
+    expect(body).toMatch(/^aws_dash_credential_expiry_seconds\{mode="web-identity"\} -1$/m);
+    expect(body).toMatch(/^aws_dash_token_file_expiry_seconds -1$/m);
+    expect(sts.calls).toBe(0);
+    expect(reads).toBe(0);
+    await app.inject({ url: "/api/identity" });
+    body = await scrape(app);
+    expect(body).toMatch(/^aws_dash_credential_expiry_seconds\{mode="web-identity"\} 3300$/m);
+    expect(body).toMatch(/^aws_dash_token_file_expiry_seconds 3600$/m);
+    expect(body).toMatch(/^aws_dash_credential_resolutions_total\{mode="web-identity",result="ok"\} 1$/m);
+    expect(sts.calls).toBe(1);
+    expect(reads).toBe(1);
+  });
+
+  it("count failed credential resolutions", async () => {
+    const { app } = await testApp({ env: WEB, credentials: { spec: { token_file: WEB.AWS_WEB_IDENTITY_TOKEN_FILE }, credentials: Object.assign(new Error("nope"), { name: "CredentialsProviderError" }) }, readFile: () => TOKEN });
+    close = () => app.close();
+    await app.inject({ url: "/api/identity" });
+    expect(await scrape(app)).toMatch(/^aws_dash_credential_resolutions_total\{mode="web-identity",result="error"\} 1$/m);
+  });
+
+  it("expose the access-check matrix as 1/0 gauges per action", async () => {
+    const { app, accessClients } = await testApp({ env: { AWS_REGION: "us-east-1", AWS_ACCESS_KEY_ID: "a", AWS_SECRET_ACCESS_KEY: "b" }, credentials: {} });
+    close = () => app.close();
+    accessClients.deny("ListBucketsCommand");
+    await app.inject({ url: "/api/access-check" });
+    const body = await scrape(app);
+    expect(body).toMatch(/^aws_dash_access_check_allowed\{action="sts:GetCallerIdentity"\} 1$/m);
+    expect(body).toMatch(/^aws_dash_access_check_allowed\{action="s3:ListAllMyBuckets"\} 0$/m);
+    expect(body).toMatch(/^aws_dash_access_check_allowed\{action="iam:GetRole"\} 1$/m);
   });
 });

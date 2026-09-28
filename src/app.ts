@@ -89,7 +89,7 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
   const stateService = overrides.stateService ?? new StateService(state, cpu, memory, settings, clock);
   const metrics = overrides.metrics ?? new Metrics({
     version, nodeVersion: process.version, authMode: credentials.describe().mode, startedAt: state.startedAt,
-    snapshot: () => stateService.snapshot(), cgroup: () => readCgroupInfo(fsRoot),
+    snapshot: () => stateService.snapshot(), cgroup: () => readCgroupInfo(fsRoot), now: () => clock.now(),
   });
   const inventory = overrides.inventory ?? new InventoryService(createAwsProvider, new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message), logger, metrics);
   const createStsClient = overrides.createStsClient ?? ((config: AwsClientDefaults) => new STSClient(config));
@@ -98,11 +98,14 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     settings, env, clock, logger, credentials, createStsClient,
     cache: new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message),
     readFile: identityReadFile,
+    observer: metrics,
   });
+  metrics.setIdentitySource(() => identity.peek());
   const createAccessClients = overrides.createAccessCheckClients ?? createAccessCheckClients;
   const accessCheck = overrides.accessCheck ?? new AccessCheckService({
     settings, clock, logger, credentials, createClients: createAccessClients,
     cache: new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message),
+    observer: metrics,
   });
   const imdsFetch = overrides.imdsFetch ?? ((url: string, init: Parameters<ImdsFetch>[1]) => fetch(url, init));
   const imdsTimeoutMs = overrides.imdsTimeoutMs ?? 1000;
