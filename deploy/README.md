@@ -14,7 +14,7 @@ One image, several credential sources. Pick the overlay for your platform:
 Render any overlay without a cluster: `kubectl kustomize deploy/<overlay>`; `scripts/kustomize-check.sh` renders all of them.
 Trust-policy templates live in `deploy/aws/`.
 
-Every overlay grants the pod `get pods` on itself (`deploy/kubernetes/rbac.yaml`). `deploy/components/node-reader` adds `get nodes` for the Kubernetes card's node section; `eks-irsa`, `eks-pod-identity` and `ztwim` include it, `kubernetes`, `openshift` and `openshift-native-oidc` do not (the card then shows the pod and a hint).
+Every overlay grants the pod's service account `get pods` in its namespace (`deploy/kubernetes/rbac.yaml`). `deploy/components/node-reader` adds `get nodes` for the Kubernetes card's node section; `eks-irsa`, `eks-pod-identity` and `ztwim` include it, `kubernetes`, `openshift` and `openshift-native-oidc` do not (the card then shows the pod and a hint).
 
 ## Shared AWS prerequisites
 

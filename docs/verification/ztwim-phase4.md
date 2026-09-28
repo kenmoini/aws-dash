@@ -15,5 +15,7 @@ observations; several are spec §15 risks the docs currently state as expectatio
 | SDK re-reads the rotated file after the STS credential expires | AWS tab "Refresh all" after ~1 h | |
 | Kubernetes card: node via `node-reader`; OOMKilled after the memory control | Identity → Kubernetes | |
 | Socket path in the CSI volume is `spire-agent.sock` | `oc exec … -- ls /spiffe-workload-api` | |
+| ClusterSPIFFEID without className is honoured (controller manager class / watchClassless) | oc get clusterspiffeid aws-dash-ztwim -o yaml → status | |
+| Where the spire-controller-manager logs live (Deployment vs spire-server StatefulSet container) | oc -n zero-trust-workload-identity-manager get deploy,sts | |
 
 Record the exact strings observed and copy corrections back into `deploy/ztwim/README.md` and spec §15.

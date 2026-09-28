@@ -73,7 +73,8 @@ The `ClusterSPIFFEID` and the `node-reader` ClusterRoleBinding need cluster-admi
 - **SPIFFE workload identity** — the X.509-SVID's SPIFFE ID with the badge *same as the token sub presented to STS*,
   its validity window, and the JWT-SVID claims for audience `aws-dash`. Reload a few minutes apart: `iat`/`exp` advance.
 - **Kubernetes** — this pod with the `spiffe-helper` sidecar absent from the container table (it is an init container)
-  and the node's instance type via the `node-reader` component.
+  and the node's instance type via the `node-reader` component. Init-container restarts (the spiffe-helper sidecar)
+  are not in the container table; check `oc get pod -o jsonpath='{.items[0].status.initContainerStatuses[0].restartCount}'`.
 - After the STS credential's expiry passes, **Refresh all** on the AWS tab still succeeds: the SDK re-read the rotated file.
 
 ## 4. Troubleshooting
