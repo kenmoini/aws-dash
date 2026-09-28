@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "healthcheck": "node dist/cli.js --healthcheck",
-    "kustomize:check": "scripts/kustomize-check.sh"
+    "kustomize:check": "scripts/kustomize-check.sh",
+    "placeholders:check": "scripts/check-placeholders.sh"
   },
   "dependencies": {
     "@aws-sdk/client-ec2": "3.1141.0",

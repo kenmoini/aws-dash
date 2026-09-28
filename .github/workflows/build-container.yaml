@@ -46,6 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: scripts/kustomize-check.sh
+      - run: scripts/check-placeholders.sh
 
   build:
     name: Build and push image
