@@ -8,7 +8,7 @@ import { mockClient } from "aws-sdk-client-mock";
 import pino from "pino";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AwsError } from "../src/aws/aws-error.js";
-import { clientDefaults, REGION_HINT, type AwsClientDefaults } from "../src/aws/client-defaults.js";
+import { clientDefaults, REGION_HINT, REQUEST_HANDLER, type AwsClientDefaults } from "../src/aws/client-defaults.js";
 import { settingsFromEnv } from "../src/config.js";
 import { CredentialProvider } from "../src/identity/credential-provider.js";
 import { createLiveAwsProvider, LiveAwsProvider } from "../src/inventory/live-provider.js";
@@ -20,7 +20,7 @@ const iam = mockClient(IAMClient);
 const eks = mockClient(EKSClient);
 const ecr = mockClient(ECRClient);
 const credentials = async () => ({ accessKeyId: "AKIAEXAMPLE", secretAccessKey: "secret" });
-const config: AwsClientDefaults = { region: "us-east-1", credentials, maxAttempts: 2, requestHandler: { connectionTimeout: 3000, requestTimeout: 10000 } };
+const config: AwsClientDefaults = { region: "us-east-1", credentials, maxAttempts: 2, requestHandler: REQUEST_HANDLER };
 const provider = (opts?: ConstructorParameters<typeof LiveAwsProvider>[1]) => new LiveAwsProvider(config, opts);
 
 beforeEach(() => { for (const m of [ec2, s3, sts, iam, eks, ecr]) m.reset(); });

@@ -13,7 +13,7 @@ describe("clientDefaults", () => {
   });
   it("applies bounded retries and timeouts and omits the SDK logger unless debugging", () => {
     const cfg = clientDefaults({ region: "eu-west-1", credentials, logger, debug: false });
-    expect(cfg).toMatchObject({ region: "eu-west-1", maxAttempts: 2, requestHandler: { connectionTimeout: 3000, requestTimeout: 10000 } });
+    expect(cfg).toMatchObject({ region: "eu-west-1", maxAttempts: 2, requestHandler: { connectionTimeout: 3000, requestTimeout: 10000, throwOnRequestTimeout: true } });
     expect(cfg.credentials).toBe(credentials);
     expect(cfg.logger).toBeUndefined();
     expect(clientDefaults({ region: "eu-west-1", credentials, logger, debug: true }).logger).toBeDefined();

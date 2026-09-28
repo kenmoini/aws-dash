@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { fromEnv, fromHttp, fromIni, fromInstanceMetadata, fromTokenFile } from "@aws-sdk/credential-providers";
+import { describe, expect, it, vi } from "vitest";
 import { AwsError } from "../src/aws/aws-error.js";
 import { settingsFromEnv } from "../src/config.js";
 import type { EnvLookup } from "../src/env.js";
@@ -13,7 +14,7 @@ const POD = { AWS_CONTAINER_CREDENTIALS_FULL_URI: "http://169.254.170.23/v1/cred
 
 describe("resolveAuthMode", () => {
   it.each([
-    [{ ...KEYS, ...TOKEN, ...POD }, "static", "auto: AWS_ACCESS_KEY_ID is set (the SDK chain checks environment keys first)"],
+    [{ ...KEYS, ...TOKEN, ...POD }, "static", "auto: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set"],
     [{ AWS_PROFILE: "demo", ...TOKEN }, "profile", "auto: AWS_PROFILE is set"],
     [{ ...TOKEN, ...POD }, "web-identity", "auto: AWS_WEB_IDENTITY_TOKEN_FILE and AWS_ROLE_ARN are set"],
     [{ ...POD }, "pod-identity", "auto: AWS_CONTAINER_CREDENTIALS_FULL_URI is set"],
@@ -63,9 +64,89 @@ describe("createCredentialSpec", () => {
     [{ AUTH_MODE: "web-identity", AWS_ROLE_ARN: "arn" }, "AUTH_MODE web-identity requires AWS_WEB_IDENTITY_TOKEN_FILE"],
     [{ AUTH_MODE: "pod-identity" }, "AUTH_MODE pod-identity requires AWS_CONTAINER_CREDENTIALS_FULL_URI or AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"],
     [{ AUTH_MODE: "imds", AWS_EC2_METADATA_DISABLED: "1" }, "AUTH_MODE imds requires AWS_EC2_METADATA_DISABLED to be unset or false"],
+    [
+      { AWS_EC2_METADATA_DISABLED: "true" },
+      "auto: no credentials found (set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, AWS_PROFILE, AWS_WEB_IDENTITY_TOKEN_FILE+AWS_ROLE_ARN, or AWS_CONTAINER_CREDENTIALS_*) and AWS_EC2_METADATA_DISABLED=true — on Kubernetes: is the credentials Secret created and the pod restarted?",
+    ],
   ])("rejects %o", (vars, message) => {
     expect(() => createCredentialSpec(settings(vars), env(vars))).toThrow(AwsError);
     expect(() => createCredentialSpec(settings(vars), env(vars))).toThrow(message);
+  });
+
+  it("passes region, bounded retries and timeouts to the STS client behind fromTokenFile (web-identity)", () => {
+    const vars = { ...TOKEN };
+    const fromTokenFile = vi.fn().mockReturnValue(async () => ({ accessKeyId: "a", secretAccessKey: "b" }));
+    const sdk = { fromEnv, fromIni, fromHttp, fromInstanceMetadata, fromTokenFile };
+    createCredentialSpec(settings({ ...vars, AWS_REGION: "eu-west-1" }), env({ ...vars, AWS_REGION: "eu-west-1" }), sdk);
+    expect(fromTokenFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        webIdentityTokenFile: TOKEN.AWS_WEB_IDENTITY_TOKEN_FILE,
+        roleArn: TOKEN.AWS_ROLE_ARN,
+        clientConfig: expect.objectContaining({
+          region: "eu-west-1",
+          maxAttempts: 2,
+          requestHandler: expect.objectContaining({ throwOnRequestTimeout: true }),
+        }),
+      }),
+    );
+  });
+
+  it("passes region, bounded retries and timeouts to the STS client behind fromIni (profile)", () => {
+    const vars = { AWS_PROFILE: "demo" };
+    const fromIniSpy = vi.fn().mockReturnValue(async () => ({ accessKeyId: "a", secretAccessKey: "b" }));
+    const sdk = { fromEnv, fromTokenFile, fromHttp, fromInstanceMetadata, fromIni: fromIniSpy };
+    createCredentialSpec(settings({ ...vars, AWS_REGION: "eu-west-1" }), env({ ...vars, AWS_REGION: "eu-west-1" }), sdk);
+    expect(fromIniSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        profile: "demo",
+        clientConfig: expect.objectContaining({
+          region: "eu-west-1",
+          maxAttempts: 2,
+          requestHandler: expect.objectContaining({ throwOnRequestTimeout: true }),
+        }),
+      }),
+    );
+  });
+
+  describe("memoize refresh behaviour", () => {
+    const countingProvider = (creds: { accessKeyId: string; secretAccessKey: string; expiration?: Date }) => {
+      let calls = 0;
+      return { calls: () => calls, provider: async () => { calls++; return creds; } };
+    };
+
+    it("re-resolves a provider whose credentials expire soon", async () => {
+      // @smithy's memoize treats "expires within 5 minutes" as already-stale, so it re-fetches
+      // inline on the very first resolve too; the fixed-in-time fake keeps looking stale on every
+      // check, so what this asserts is the second resolve triggering at least one more fetch than
+      // the first — not a fixed total.
+      const counting = countingProvider({ accessKeyId: "a", secretAccessKey: "b", expiration: new Date(Date.now() + 60_000) });
+      const fromTokenFile = vi.fn().mockReturnValue(counting.provider);
+      const sdk = { fromEnv, fromIni, fromHttp, fromInstanceMetadata, fromTokenFile };
+      const spec = createCredentialSpec(settings(TOKEN), env(TOKEN), sdk);
+      await spec.provider();
+      const afterFirst = counting.calls();
+      await spec.provider();
+      expect(counting.calls()).toBeGreaterThan(afterFirst);
+    });
+
+    it("caches a provider with no expiration across resolves", async () => {
+      const counting = countingProvider({ accessKeyId: "a", secretAccessKey: "b" });
+      const fromTokenFile = vi.fn().mockReturnValue(counting.provider);
+      const sdk = { fromEnv, fromIni, fromHttp, fromInstanceMetadata, fromTokenFile };
+      const spec = createCredentialSpec(settings(TOKEN), env(TOKEN), sdk);
+      await spec.provider();
+      await spec.provider();
+      expect(counting.calls()).toBe(1);
+    });
+
+    it("coalesces concurrent resolves into a single inner call", async () => {
+      const counting = countingProvider({ accessKeyId: "a", secretAccessKey: "b" });
+      const fromTokenFile = vi.fn().mockReturnValue(counting.provider);
+      const sdk = { fromEnv, fromIni, fromHttp, fromInstanceMetadata, fromTokenFile };
+      const spec = createCredentialSpec(settings(TOKEN), env(TOKEN), sdk);
+      await Promise.all(Array.from({ length: 8 }, () => spec.provider()));
+      expect(counting.calls()).toBe(1);
+    });
   });
 });
 
