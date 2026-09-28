@@ -16,14 +16,17 @@ import { TtlCache } from "./inventory/ttl-cache.js";
 import { CpuLoad } from "./load/cpu-load.js";
 import { MemoryLoad } from "./load/memory-load.js";
 import { createLogger } from "./logging.js";
+import { Metrics } from "./metrics/metrics.js";
 import { PUBLIC_DIR, VIEWS_DIR } from "./paths.js";
 import { registerControlRoutes } from "./routes/controls.js";
 import { errorBody } from "./routes/errors.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerInventoryRoutes } from "./routes/inventory.js";
+import { registerHttpMetricsHook, registerMetricsRoutes } from "./routes/metrics.js";
 import { registerPageRoutes } from "./routes/pages.js";
 import { createRenderer, registerRendering } from "./routes/render.js";
 import { registerRuntimeRoutes } from "./routes/runtime.js";
+import { readCgroupInfo } from "./runtime/runtime-info.js";
 import { realExit, type ProcessExit } from "./state/process-exit.js";
 import { RuntimeState } from "./state/runtime-state.js";
 import { StateService } from "./state/state-service.js";
@@ -46,6 +49,7 @@ export interface AppDeps {
   /** Builds the live AWS provider on first use; tests inject a fake. */
   createAwsProvider: () => AwsProvider;
   inventory: InventoryService;
+  metrics: Metrics;
 }
 
 const pkg = createRequire(import.meta.url)("../package.json") as { version: string };
@@ -61,17 +65,25 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
   const logger = overrides.logger ?? createLogger(settings);
   const credentials = overrides.credentials ?? new CredentialProvider(settings, env);
   const createAwsProvider = overrides.createAwsProvider ?? (() => createLiveAwsProvider({ settings, credentials, logger }));
-  const inventory = overrides.inventory ?? new InventoryService(createAwsProvider, new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message), logger);
+  const fsRoot = overrides.fsRoot ?? "/";
+  const version = overrides.version ?? pkg.version;
+  const stateService = overrides.stateService ?? new StateService(state, cpu, memory, settings, clock);
+  const metrics = overrides.metrics ?? new Metrics({
+    version, nodeVersion: process.version, authMode: settings.authMode, startedAt: state.startedAt,
+    snapshot: () => stateService.snapshot(), cgroup: () => readCgroupInfo(fsRoot),
+  });
+  const inventory = overrides.inventory ?? new InventoryService(createAwsProvider, new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message), logger, metrics);
   return {
     settings, env, clock, state, cpu, memory, logger,
-    fsRoot: overrides.fsRoot ?? "/",
-    version: overrides.version ?? pkg.version,
-    stateService: overrides.stateService ?? new StateService(state, cpu, memory, settings, clock),
+    fsRoot,
+    version,
+    stateService,
     exit: overrides.exit ?? realExit,
     crashDelayMs: overrides.crashDelayMs ?? 500,
     credentials,
     createAwsProvider,
     inventory,
+    metrics,
   };
 }
 
@@ -87,6 +99,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(formbody);
   await app.register(fastifyStatic, { root: PUBLIC_DIR, prefix: "/public/" });
   registerRendering(app, { eta: createRenderer(VIEWS_DIR, deps.env("NODE_ENV") === "production"), version: deps.version });
+  registerHttpMetricsHook(app, deps);
 
   app.setNotFoundHandler((req, reply) => reply.code(404).send(errorBody(`not found: ${req.method} ${req.url}`)));
   // Explicit FastifyError annotation: setErrorHandler's error param generic defaults
@@ -106,5 +119,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerPageRoutes(app, deps);
   registerControlRoutes(app, deps);
   registerInventoryRoutes(app, deps);
+  registerMetricsRoutes(app, deps);
   return app;
 }

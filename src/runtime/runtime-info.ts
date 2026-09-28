@@ -117,6 +117,10 @@ function ratio(quota: number | null, period: number | null): number | null {
   return quota !== null && period !== null && quota > 0 && period > 0 ? Math.round((quota / period) * 100) / 100 : null;
 }
 
+export function readCgroupInfo(root: string): CgroupInfo {
+  return readCgroup(root);
+}
+
 function readCgroup(root: string): CgroupInfo {
   if (exists(root, "sys/fs/cgroup/cgroup.controllers")) {
     const [quota, period] = (readText(root, "sys/fs/cgroup/cpu.max") ?? "").trim().split(/\s+/);
