@@ -22,8 +22,9 @@ export OIDC_ISSUER_HOST=${ISSUER#https://}
 
 ```bash
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-aws iam list-open-id-connect-providers --query "OpenIDConnectProviderList[?ends_with(Arn, '$OIDC_ISSUER_HOST')]" --output text \
-  || aws iam create-open-id-connect-provider --url "$ISSUER" --client-id-list sts.amazonaws.com
+if [ -z "$(aws iam list-open-id-connect-providers --query "OpenIDConnectProviderList[?ends_with(Arn, '$OIDC_ISSUER_HOST')].Arn" --output text)" ]; then
+  aws iam create-open-id-connect-provider --url "$ISSUER" --client-id-list sts.amazonaws.com
+fi
 sed -e "s/AWS_ACCOUNT_ID/$AWS_ACCOUNT_ID/g" -e "s#OIDC_ISSUER_HOST#$OIDC_ISSUER_HOST#g" deploy/aws/trust-openshift-oidc.json > /tmp/aws-dash-trust.json
 aws iam create-role --role-name aws-dash-openshift --assume-role-policy-document file:///tmp/aws-dash-trust.json
 aws iam create-policy --policy-name aws-dash-readonly --policy-document file://deploy/aws/aws-dash-readonly-policy.json 2>/dev/null || true
@@ -43,3 +44,7 @@ Open **Identity**: mode `web-identity`, flavor **Kubernetes projected service-ac
 `sub = system:serviceaccount:aws-dash:aws-dash`. If the projected token file is unreadable under OpenShift's arbitrary
 UID, add `defaultMode: 0640` to the projected volume (record what you observed). `InvalidIdentityToken` means the IAM
 OIDC provider URL and the token's `iss` differ (scheme, path or trailing slash).
+
+This overlay sets `AWS_EC2_METADATA_DISABLED=true` (credentials never fall back to node IMDS) but leaves
+`IMDS_ENABLED=true` deliberately, so the **IMDS** card still shows whether pods can reach node metadata — useful for
+diagnosing network policy. Set `IMDS_ENABLED=false` in the ConfigMap to skip that 1 s probe on every TTL.

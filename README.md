@@ -69,11 +69,11 @@ all controls → 403 when `CONTROLS_ENABLED=false`.
 | `CPU_LOAD_MAX_WORKERS` | CPU count | upper bound for the CPU control |
 | `AUTH_MODE` | `auto` | `auto\|static\|profile\|web-identity\|pod-identity\|imds` — `auto` follows the SDK chain order |
 | `AWS_REGION` | — | falls back to `AWS_DEFAULT_REGION`; required for the AWS tab |
-| `AWS_CACHE_TTL_SECONDS` | `60` | how long an inventory kind's result is served from cache before it's refetched |
+| `AWS_CACHE_TTL_SECONDS` | `60` | how long a cached result — inventory, identity, access-check or IMDS — is served before it's refetched |
 | `AWS_DEBUG` | `false` | logs SDK request metadata |
 | `METRICS_ENABLED` | `true` | `false` → `/metrics` returns 404 |
-| `IMDS_ENABLED` | `true` | `false` hides the IMDS card and skips the IMDS probe |
-| `ACCESS_CHECK_ENABLED` | `true` | `false` hides the access-check matrix |
+| `IMDS_ENABLED` | `true` | `false` → the IMDS card renders an "Unavailable: disabled…" state and skips the probe, instead of being hidden |
+| `ACCESS_CHECK_ENABLED` | `true` | `false` → the access-check matrix renders a "Disabled (…)" state instead of being hidden |
 | `ACCESS_CHECK_ACTIONS` | unset = all | comma-separated subset of the 11 access-check actions (see `src/identity/access-check-actions.ts`); `sts:GetCallerIdentity` always runs |
 | `K8S_INFO_ENABLED`, `SPIFFE_ENDPOINT_SOCKET`, `SPIFFE_JWT_AUDIENCE` | see `src/config.ts` | parsed now, used from Phase 4 onward |
 
@@ -95,10 +95,14 @@ keys when both are set — set only one. Any mode can also be forced explicitly 
 ## Metrics
 
 Beyond the Phase 2 inventory and probe metrics, `/metrics` exposes four identity/access-check gauges and counters:
-`aws_dash_credential_expiry_seconds{mode}` (seconds until the cached credentials expire), `aws_dash_token_file_expiry_seconds`
-(seconds until the web-identity token file expires), `aws_dash_credential_resolutions_total{mode,result}` (credential
-resolutions by mode and result), and `aws_dash_access_check_allowed{action}` (1 when the last access check allowed the
-action, else 0). All four are gauges/counters computed from cached state at scrape time — a scrape never calls AWS or IMDS.
+`aws_dash_credential_expiry_seconds{mode}` (seconds until the memoized AWS credentials actually in use expire — fed by a
+tap on the shared credential provider, so it reflects every resolution from inventory, access-check and the Identity
+tab, not only a visit to `/identity`), `aws_dash_token_file_expiry_seconds` (seconds until the web-identity token file
+expires, **as of the last Identity-tab load** — this one gauge still needs `/identity` to have been opened at least
+once, since decoding the token file is otherwise only done there), `aws_dash_credential_resolutions_total{mode,result}`
+(credential resolutions by mode and result, incremented once per real resolution — a memoized cache hit does not
+count), and `aws_dash_access_check_allowed{action}` (1 when the last access check allowed the action, else 0). All four
+are gauges/counters computed from cached state at scrape time — a scrape never calls AWS or IMDS.
 
 ## Deploy
 

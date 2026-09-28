@@ -15,8 +15,9 @@ export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output tex
 export OIDC_ISSUER=$(aws eks describe-cluster --name "$CLUSTER" --query cluster.identity.oidc.issuer --output text)
 export OIDC_ISSUER_HOST=${OIDC_ISSUER#https://}
 # Register the issuer as an IAM OIDC provider once per cluster (skip if it already exists):
-aws iam list-open-id-connect-providers --query "OpenIDConnectProviderList[?ends_with(Arn, '$OIDC_ISSUER_HOST')]" --output text \
-  || aws iam create-open-id-connect-provider --url "$OIDC_ISSUER" --client-id-list sts.amazonaws.com
+if [ -z "$(aws iam list-open-id-connect-providers --query "OpenIDConnectProviderList[?ends_with(Arn, '$OIDC_ISSUER_HOST')].Arn" --output text)" ]; then
+  aws iam create-open-id-connect-provider --url "$OIDC_ISSUER" --client-id-list sts.amazonaws.com
+fi
 # eksctl equivalent: eksctl utils associate-iam-oidc-provider --cluster "$CLUSTER" --approve
 ```
 
