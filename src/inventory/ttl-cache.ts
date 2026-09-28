@@ -49,6 +49,12 @@ export class TtlCache {
     for (const slot of this.slots.values()) slot.fresh_until = 0;
   }
 
+  /** The stored entry for `key` — fresh or stale — without triggering a load; null when nothing was ever stored. */
+  peek<T>(key: string): CacheEntry<T> | null {
+    const slot = this.slots.get(key);
+    return slot ? (slot.entry as CacheEntry<T>) : null;
+  }
+
   private fresh<T>(key: string): CacheEntry<T> | undefined {
     const slot = this.slots.get(key);
     if (slot && slot.epoch === this.epoch && this.clock.now().getTime() < slot.fresh_until) return slot.entry as CacheEntry<T>;

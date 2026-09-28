@@ -97,4 +97,13 @@ describe("TtlCache", () => {
     expect((await forced).value).toBe(99);
     expect(calls).toBe(2);
   });
+
+  it("peek returns the stored entry (even when stale) without loading, or null", async () => {
+    const clock = new FakeClock();
+    const cache = new TtlCache(1000, clock);
+    expect(cache.peek("k")).toBeNull();
+    await cache.get("k", async () => "v");
+    clock.advance(5000);
+    expect(cache.peek<string>("k")).toEqual({ value: "v", fetched_at: "2026-01-01T00:00:00.000Z", error: null });
+  });
 });

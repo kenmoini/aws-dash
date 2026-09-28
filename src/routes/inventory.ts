@@ -18,6 +18,7 @@ export function registerInventoryRoutes(app: FastifyInstance, deps: AppDeps): vo
   });
   app.post("/api/aws/refresh", (_req, reply) => {
     deps.inventory.invalidateAll();
+    deps.identity.invalidateAll();
     return reply.code(204).send();
   });
   app.get("/partials/aws/:kind", async (req, reply) => {
@@ -26,4 +27,7 @@ export function registerInventoryRoutes(app: FastifyInstance, deps: AppDeps): vo
     const entry = await deps.inventory.fetch(kind, isRefresh(req));
     return reply.partial("partials/panel", { kind, title: kindTitle(kind), entry });
   });
+  // Temporary JSON route so IdentityService is testable end to end; Task 3 moves this to
+  // src/routes/identity.ts alongside the page and partial.
+  app.get("/api/identity", (req) => deps.identity.get(isRefresh(req)));
 }

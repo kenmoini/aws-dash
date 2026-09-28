@@ -7,13 +7,17 @@ import { RuntimeState } from "../../src/state/runtime-state.js";
 import { StateService } from "../../src/state/state-service.js";
 import { FakeAwsProvider } from "./fake-aws-provider.js";
 import { FakeClock } from "./fake-clock.js";
+import { fakeCredentialProvider, type FakeCredentialOptions } from "./fake-credentials.js";
 import { FakeExit } from "./fake-exit.js";
+import { FakeSts } from "./fake-sts.js";
 import { FakeWorkerFactory } from "./fake-worker-factory.js";
 
 export interface TestAppOptions {
   env?: Record<string, string>;
   fsRoot?: string;
   overrides?: Partial<AppDeps>;
+  credentials?: FakeCredentialOptions;
+  readFile?: (path: string) => string;
 }
 
 /** Builds the app with every external dependency faked; nothing reaches the OS, network or AWS. */
@@ -28,11 +32,17 @@ export async function testApp(opts: TestAppOptions = {}) {
   const cpu = new CpuLoad({ maxWorkers: 2, factory: workers.factory });
   const memory = new MemoryLoad({ chunkMib: 1, clock });
   const aws = new FakeAwsProvider();
+  const sts = new FakeSts();
+  const fake = opts.credentials ? fakeCredentialProvider(settings, env, opts.credentials) : undefined;
   const deps = createDeps({
     settings, env, clock, logger: pino({ level: "silent" }), fsRoot: opts.fsRoot ?? "/nonexistent-root",
     state, cpu, memory, stateService: new StateService(state, cpu, memory, settings, clock),
-    exit: exit.fn, crashDelayMs: 10, createAwsProvider: () => aws, ...opts.overrides,
+    exit: exit.fn, crashDelayMs: 10, createAwsProvider: () => aws,
+    createStsClient: () => sts,
+    identityReadFile: opts.readFile ?? (() => { throw Object.assign(new Error("ENOENT: no token file in tests"), { code: "ENOENT" }); }),
+    ...(fake ? { credentials: fake.provider } : {}),
+    ...opts.overrides,
   });
   const app = await buildApp(deps);
-  return { app, deps, clock, exit, workers, state, cpu, memory, aws };
+  return { app, deps, clock, exit, workers, state, cpu, memory, aws, sts, credentialResolves: () => fake?.counter.resolves ?? 0 };
 }

@@ -1,14 +1,20 @@
+import fs from "node:fs";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { createRequire } from "node:module";
 import fastifyStatic from "@fastify/static";
 import formbody from "@fastify/formbody";
+// Exception to "routes/app.ts never import @aws-sdk/*": the STS client constructor is the one
+// SDK value app.ts needs to build the default createStsClient factory (see AppDeps.createStsClient).
+import { STSClient } from "@aws-sdk/client-sts";
 import Fastify, { LogController, type FastifyBaseLogger, type FastifyError, type FastifyInstance } from "fastify";
 import type { Logger } from "pino";
+import type { AwsClientDefaults } from "./aws/client-defaults.js";
 import { awsErrorFrom } from "./aws/aws-error.js";
 import { systemClock, type Clock } from "./clock.js";
 import { settingsFromEnv, type AppSettings } from "./config.js";
 import { processEnv, type EnvLookup } from "./env.js";
 import { CredentialProvider } from "./identity/credential-provider.js";
+import { IdentityService, type StsLike } from "./identity/identity-service.js";
 import { InventoryService } from "./inventory/inventory-service.js";
 import { createLiveAwsProvider } from "./inventory/live-provider.js";
 import type { AwsProvider } from "./inventory/provider.js";
@@ -50,6 +56,10 @@ export interface AppDeps {
   createAwsProvider: () => AwsProvider;
   inventory: InventoryService;
   metrics: Metrics;
+  /** Builds the STS client for GetCallerIdentity on first use; tests inject a fake. */
+  createStsClient: (config: AwsClientDefaults) => StsLike;
+  identityReadFile: (path: string) => string;
+  identity: IdentityService;
 }
 
 const pkg = createRequire(import.meta.url)("../package.json") as { version: string };
@@ -73,6 +83,13 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     snapshot: () => stateService.snapshot(), cgroup: () => readCgroupInfo(fsRoot),
   });
   const inventory = overrides.inventory ?? new InventoryService(createAwsProvider, new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message), logger, metrics);
+  const createStsClient = overrides.createStsClient ?? ((config: AwsClientDefaults) => new STSClient(config));
+  const identityReadFile = overrides.identityReadFile ?? ((path: string) => fs.readFileSync(path, "utf8"));
+  const identity = overrides.identity ?? new IdentityService({
+    settings, env, clock, logger, credentials, createStsClient,
+    cache: new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message),
+    readFile: identityReadFile,
+  });
   return {
     settings, env, clock, state, cpu, memory, logger,
     fsRoot,
@@ -84,6 +101,9 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     createAwsProvider,
     inventory,
     metrics,
+    createStsClient,
+    identityReadFile,
+    identity,
   };
 }
 
