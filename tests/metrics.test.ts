@@ -30,6 +30,13 @@ describe("/metrics", () => {
     expect(body).toMatch(/^aws_dash_cpu_load_workers 1$/m);
   });
 
+  it("reports the resolved auth mode, not the literal AUTH_MODE=auto setting", async () => {
+    const { app } = await testApp({ env: { AWS_ACCESS_KEY_ID: "a", AWS_SECRET_ACCESS_KEY: "b" } });
+    close = () => app.close();
+    const body = await scrape(app);
+    expect(body).toMatch(/^aws_dash_info\{version="\d+\.\d+\.\d+",node_version="v\d+[^"]*",auth_mode="static"\} 1$/m);
+  });
+
   it("reports cgroup limits, or -1 when unknown", async () => {
     const root = new FakeRoot().write("sys/fs/cgroup/cgroup.controllers", "memory").write("sys/fs/cgroup/memory.max", "536870912").write("sys/fs/cgroup/memory.current", "1048576").write("sys/fs/cgroup/cpu.max", "max 100000");
     const { app } = await testApp({ fsRoot: root.path });
