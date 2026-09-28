@@ -1,0 +1,13 @@
+# Explicit registration for this namespace; the operator's own ClusterSPIFFEID is a fallback, so this one wins for these pods.
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterSPIFFEID
+metadata:
+  name: aws-dash-ztwim
+spec:
+  spiffeIDTemplate: "spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}"
+  namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: aws-dash-ztwim
+  podSelector:
+    matchLabels:
+      app: aws-dash

@@ -3,7 +3,7 @@
 # can forget the sed that fills it in. Add new placeholder tokens to PLACEHOLDERS when you introduce them.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-PLACEHOLDERS='AWS_ACCOUNT_ID|OIDC_ISSUER_HOST|000000000000|REPLACE_ME'
+PLACEHOLDERS='AWS_ACCOUNT_ID|OIDC_ISSUER_HOST|TRUST_DOMAIN|000000000000|REPLACE_ME'
 status=0
 while IFS= read -r file; do
   dir=$(dirname "$file")

@@ -1,0 +1,92 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: aws-dash-ztwim
+resources:
+  - ../kubernetes
+  - route.yaml
+  - identity-configmap.yaml
+  - spiffe-helper-configmap.yaml
+  - clusterspiffeid.yaml
+components:
+  - ../components/node-reader
+patches:
+  - target: {kind: Namespace, name: aws-dash}
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: aws-dash-ztwim
+  # The component binds the SA in namespace aws-dash; this overlay lives elsewhere, so rename and repoint the binding.
+  - target: {kind: ClusterRoleBinding, name: aws-dash-node-reader}
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: aws-dash-node-reader-ztwim
+      - op: replace
+        path: /subjects/0/namespace
+        value: aws-dash-ztwim
+  - target: {kind: ConfigMap, name: aws-dash-config}
+    patch: |-
+      - op: replace
+        path: /data/AUTH_MODE
+        value: web-identity
+  - target: {kind: Deployment, name: aws-dash}
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: spiffe-workload-api
+          csi:
+            driver: csi.spiffe.io
+            readOnly: true
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: spiffe-helper-config
+          configMap:
+            name: spiffe-helper
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: aws-token
+          emptyDir:
+            medium: Memory
+      # Native sidecar: starts before the app, restarts with the pod, keeps the JWT-SVID file fresh (ZTWIM JWT TTL ≈ 5 min).
+      - op: add
+        path: /spec/template/spec/initContainers/-
+        value:
+          name: spiffe-helper
+          image: registry.redhat.io/zero-trust-workload-identity-manager/spiffe-helper-rhel9:v0.11.0-1787560110
+          restartPolicy: Always
+          command: ["/spiffe-helper"]
+          args: ["-config", "/etc/spiffe-helper/helper.conf", "-daemon-mode=true"]
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: spiffe-workload-api, mountPath: /spiffe-workload-api, readOnly: true}
+            - {name: spiffe-helper-config, mountPath: /etc/spiffe-helper, readOnly: true}
+            - {name: aws-token, mountPath: /var/run/secrets/aws}
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value: {name: aws-token, mountPath: /var/run/secrets/aws, readOnly: true}
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value: {name: spiffe-workload-api, mountPath: /spiffe-workload-api, readOnly: true}
+      - op: add
+        path: /spec/template/spec/containers/0/envFrom/-
+        value: {configMapRef: {name: aws-dash-identity}}
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: AWS_WEB_IDENTITY_TOKEN_FILE, value: /var/run/secrets/aws/token}
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: SPIFFE_ENDPOINT_SOCKET, value: unix:///spiffe-workload-api/spire-agent.sock}
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: SPIFFE_JWT_AUDIENCE, value: aws-dash}
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: AWS_EC2_METADATA_DISABLED, value: "true"}

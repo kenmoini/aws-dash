@@ -9,7 +9,7 @@ One image, several credential sources. Pick the overlay for your platform:
 | `eks-irsa` | EKS | IAM Roles for Service Accounts | no | `Federated` OIDC provider | `<issuer>:sub`, `<issuer>:aud` |
 | `eks-pod-identity` | EKS | EKS Pod Identity | no | `Service pods.eks.amazonaws.com` | none — session tags instead |
 | `openshift-native-oidc` | OpenShift / ROSA with a public SA issuer | projected SA token → `sts:AssumeRoleWithWebIdentity` | no | `Federated` issuer | `<issuer>:sub`, `<issuer>:aud` |
-| `ztwim` | OpenShift + Zero Trust Workload Identity Manager | SPIRE JWT-SVID → `sts:AssumeRoleWithWebIdentity` (Phase 4) | no | — | — |
+| `ztwim` | OpenShift + Zero Trust Workload Identity Manager | SPIRE JWT-SVID written by a spiffe-helper native sidecar → `sts:AssumeRoleWithWebIdentity` | no | `Federated` SPIRE OIDC discovery provider | `<issuer>:aud` = `aws-dash`, `<issuer>:sub` = `spiffe://<trust-domain>/ns/aws-dash-ztwim/sa/aws-dash` |
 
 Render any overlay without a cluster: `kubectl kustomize deploy/<overlay>`; `scripts/kustomize-check.sh` renders all of them.
 Trust-policy templates live in `deploy/aws/`.

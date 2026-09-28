@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aws-dash-identity
+data:
+  AWS_ROLE_ARN: arn:aws:iam::AWS_ACCOUNT_ID:role/aws-dash-ztwim
+  AWS_ROLE_SESSION_NAME: aws-dash
