@@ -9,4 +9,6 @@ export function registerIdentityRoutes(app: FastifyInstance, deps: AppDeps): voi
   app.get("/api/access-check", (req) => deps.accessCheck.run(isRefresh(req)));
   app.get("/partials/access-check", async (req, reply) =>
     reply.partial("partials/access-check", { report: await deps.accessCheck.run(isRefresh(req)), now: deps.clock.now().toISOString() }));
+  app.get("/api/imds", (req) => deps.imds.get(isRefresh(req)));
+  app.get("/partials/imds", async (req, reply) => reply.partial("partials/imds", { info: await deps.imds.get(isRefresh(req)) }));
 }

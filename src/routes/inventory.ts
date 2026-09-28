@@ -20,6 +20,7 @@ export function registerInventoryRoutes(app: FastifyInstance, deps: AppDeps): vo
     deps.inventory.invalidateAll();
     deps.identity.invalidateAll();
     deps.accessCheck.invalidateAll();
+    deps.imds.invalidateAll();
     return reply.code(204).send();
   });
   app.get("/partials/aws/:kind", async (req, reply) => {

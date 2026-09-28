@@ -1,0 +1,17 @@
+<% const i = it.info, fmt = it.fmt; %>
+<h2>Instance metadata (IMDS)</h2>
+<% if (!i.available) { %>
+<p class="muted">Unavailable: <%= i.reason %></p>
+<% } else { %>
+<p class="muted">This describes the <strong>node</strong> (the EC2 instance) this pod runs on, not the pod. On EKS Auto Mode and nodes with hop limit 1, pods cannot reach IMDS at all.</p>
+<dl class="kv">
+  <dt>Instance</dt><dd><%= fmt.or(i.instance.instance_id) %></dd>
+  <dt>Type</dt><dd><%= fmt.or(i.instance.instance_type) %></dd>
+  <dt>Availability zone</dt><dd><%= fmt.or(i.instance.availability_zone) %></dd>
+  <dt>Region</dt><dd><%= fmt.or(i.instance.region) %></dd>
+  <dt>Account</dt><dd><%= fmt.or(i.instance.account_id) %></dd>
+  <dt>Image</dt><dd><%= fmt.or(i.instance.image_id) %></dd>
+  <dt>Private IP</dt><dd><%= fmt.or(i.instance.private_ip) %></dd>
+</dl>
+<% } %>
+<p class="muted">Checked <%= fmt.time(i.fetched_at) %> · <a href="#" hx-get="/partials/imds?refresh=1" hx-target="closest [data-imds-panel]">refresh</a></p>

@@ -1,6 +1,7 @@
 import pino from "pino";
 import { buildApp, createDeps, type AppDeps } from "../../src/app.js";
 import { settingsFromEnv } from "../../src/config.js";
+import type { ImdsFetch } from "../../src/imds/imds-client.js";
 import { CpuLoad } from "../../src/load/cpu-load.js";
 import { MemoryLoad } from "../../src/load/memory-load.js";
 import { RuntimeState } from "../../src/state/runtime-state.js";
@@ -21,6 +22,19 @@ export interface TestAppOptions {
   readFile?: (path: string) => string;
 }
 
+/** Minimal IMDS fake for route tests: answers the token PUT then the document GET; `mode: "hang"` waits for the abort signal. */
+export class FakeImdsFetch {
+  calls = 0;
+  mode: "ok" | "hang" = "ok";
+  document: Record<string, string> = { instanceId: "i-test", instanceType: "t3.micro", availabilityZone: "us-east-1a", region: "us-east-1", accountId: "123456789012", imageId: "ami-test", privateIp: "10.0.0.1" };
+  readonly fn: ImdsFetch = async (url, init) => {
+    this.calls++;
+    if (this.mode === "hang") await new Promise((_, reject) => init.signal?.addEventListener("abort", () => reject(init.signal?.reason)));
+    if (url.endsWith("/latest/api/token")) return { ok: true, status: 200, text: async () => "T" };
+    return { ok: true, status: 200, text: async () => JSON.stringify(this.document) };
+  };
+}
+
 /** Builds the app with every external dependency faked; nothing reaches the OS, network or AWS. */
 export async function testApp(opts: TestAppOptions = {}) {
   const vars = opts.env ?? {};
@@ -35,6 +49,7 @@ export async function testApp(opts: TestAppOptions = {}) {
   const aws = new FakeAwsProvider();
   const sts = new FakeSts();
   const accessClients = new FakeAccessCheckClients(sts);
+  const imdsFetch = new FakeImdsFetch();
   const fake = opts.credentials ? fakeCredentialProvider(settings, env, opts.credentials) : undefined;
   const deps = createDeps({
     settings, env, clock, logger: pino({ level: "silent" }), fsRoot: opts.fsRoot ?? "/nonexistent-root",
@@ -43,9 +58,10 @@ export async function testApp(opts: TestAppOptions = {}) {
     createStsClient: () => sts,
     identityReadFile: opts.readFile ?? (() => { throw Object.assign(new Error("ENOENT: no token file in tests"), { code: "ENOENT" }); }),
     createAccessCheckClients: () => accessClients,
+    imdsFetch: imdsFetch.fn, imdsTimeoutMs: 20,
     ...(fake ? { credentials: fake.provider } : {}),
     ...opts.overrides,
   });
   const app = await buildApp(deps);
-  return { app, deps, clock, exit, workers, state, cpu, memory, aws, sts, accessClients, credentialResolves: () => fake?.counter.resolves ?? 0 };
+  return { app, deps, clock, exit, workers, state, cpu, memory, aws, sts, accessClients, imdsFetch, credentialResolves: () => fake?.counter.resolves ?? 0 };
 }

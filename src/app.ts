@@ -16,6 +16,7 @@ import { processEnv, type EnvLookup } from "./env.js";
 import { AccessCheckService, createAccessCheckClients, type AccessCheckClients } from "./identity/access-check.js";
 import { CredentialProvider } from "./identity/credential-provider.js";
 import { IdentityService, type StsLike } from "./identity/identity-service.js";
+import { ImdsClient, type ImdsFetch } from "./imds/imds-client.js";
 import { InventoryService } from "./inventory/inventory-service.js";
 import { createLiveAwsProvider } from "./inventory/live-provider.js";
 import type { AwsProvider } from "./inventory/provider.js";
@@ -65,6 +66,9 @@ export interface AppDeps {
   /** Builds the access-check clients on first use; tests inject a fake. */
   createAccessCheckClients: (config: AwsClientDefaults) => AccessCheckClients;
   accessCheck: AccessCheckService;
+  imdsFetch: ImdsFetch;
+  imdsTimeoutMs: number;
+  imds: ImdsClient;
 }
 
 const pkg = createRequire(import.meta.url)("../package.json") as { version: string };
@@ -100,6 +104,12 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     settings, clock, logger, credentials, createClients: createAccessClients,
     cache: new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message),
   });
+  const imdsFetch = overrides.imdsFetch ?? ((url: string, init: Parameters<ImdsFetch>[1]) => fetch(url, init));
+  const imdsTimeoutMs = overrides.imdsTimeoutMs ?? 1000;
+  const imds = overrides.imds ?? new ImdsClient({
+    enabled: settings.imdsEnabled, clock, fetchFn: imdsFetch, timeoutMs: imdsTimeoutMs,
+    cache: new TtlCache(settings.cacheTtlSeconds * 1000, clock, (err) => awsErrorFrom(err).message),
+  });
   return {
     settings, env, clock, state, cpu, memory, logger,
     fsRoot,
@@ -116,6 +126,9 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     identity,
     createAccessCheckClients: createAccessClients,
     accessCheck,
+    imdsFetch,
+    imdsTimeoutMs,
+    imds,
   };
 }
 

@@ -8,4 +8,8 @@
     <h2>Access check</h2>
     <p class="muted">Loading…</p>
   </section>
+  <section class="card" data-imds-panel hx-get="/partials/imds" hx-trigger="load">
+    <h2>Instance metadata (IMDS)</h2>
+    <p class="muted">Loading…</p>
+  </section>
 </div>
