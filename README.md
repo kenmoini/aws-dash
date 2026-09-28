@@ -70,9 +70,8 @@ Downward API variables shown on the Runtime tab: `POD_NAME`, `POD_NAMESPACE`, `N
 
 ### Credential modes
 
-`AUTH_MODE=auto` (the default) picks a mode by checking the same signals the AWS SDK's default provider chain
-does, in this order, so the label always matches what the SDK would actually do; any mode can also be forced
-explicitly by setting `AUTH_MODE`.
+`auto` checks the sources in this order; note the SDK's own default chain prefers `AWS_PROFILE` over environment
+keys when both are set — set only one. Any mode can also be forced explicitly by setting `AUTH_MODE`.
 
 | Mode | Selected in `auto` when | SDK provider |
 |---|---|---|
@@ -100,8 +99,8 @@ last successfully fetched data — when the policy is missing or incomplete.
 3. **CPU load** → `kubectl top pod -n aws-dash`.
 4. **Memory load** above the 512 Mi limit → `kubectl -n aws-dash get pod -o jsonpath='{.items[0].status.containerStatuses[0].lastState}'` shows `OOMKilled`.
 5. **Crash** with exit code 3 → `lastState.terminated.exitCode: 3` and the restart count goes up.
-6. Detach the read-only policy and click "Refresh all" → every panel shows an AccessDenied hint but keeps its
-   last data; re-attach to recover.
+6. Detach the read-only policy and click "Refresh all" → every panel except Account shows an AccessDenied hint
+   (`sts:GetCallerIdentity` needs no permission) but keeps its last data; re-attach to recover.
 7. Scrape `/metrics` (e.g. `curl -s localhost:8080/metrics | grep aws_dash_`) while doing the above.
 
 ## Security

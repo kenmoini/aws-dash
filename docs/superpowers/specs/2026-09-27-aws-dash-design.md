@@ -108,8 +108,10 @@ Read but never re-defaulted: all standard `AWS_*` chain vars (`AWS_ACCESS_KEY_ID
 
 ## 4. Credential selection (`identity/credential-factory.ts`) — mirrors azure-dash `CredentialFactory`
 
-`resolve(settings, env) → {mode, reason}` — explicit `AUTH_MODE` wins; `auto` first-match **in SDK chain order**:
-1. `AWS_ACCESS_KEY_ID`+`AWS_SECRET_ACCESS_KEY` → `static` ("auto: AWS_ACCESS_KEY_ID is set (SDK chain checks env first)")
+`resolve(settings, env) → {mode, reason}` — explicit `AUTH_MODE` wins; `auto` first-match **in SDK chain order**.
+Note the SDK's own default chain actually prefers `AWS_PROFILE` over environment keys when both are set, which is
+the opposite of the order below — set only one:
+1. `AWS_ACCESS_KEY_ID`+`AWS_SECRET_ACCESS_KEY` → `static` ("auto: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set")
 2. `AWS_PROFILE` → `profile`
 3. `AWS_WEB_IDENTITY_TOKEN_FILE`+`AWS_ROLE_ARN` → `web-identity`
 4. `AWS_CONTAINER_CREDENTIALS_FULL_URI`|`RELATIVE_URI` → `pod-identity`

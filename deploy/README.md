@@ -23,3 +23,4 @@ aws iam create-policy --policy-name aws-dash-readonly --policy-document file://d
 ```
 
 `sts:GetCallerIdentity` needs no permission; everything else on the AWS tab fails closed with an actionable hint when the policy is missing.
+`ec2:DescribeRegions` and `iam:GetRole` are unused until Phase 3's access-check matrix; they are granted now so the policy does not change later.
