@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: aws-dash
+resources:
+  - ../kubernetes
+patches:
+  # Explicit so a missing PodIdentityAssociation is an error on the Identity tab instead of a silent fall-through
+  # to the node's instance role via IMDS. The eks-pod-identity-agent injects AWS_CONTAINER_CREDENTIALS_FULL_URI and
+  # AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE; nothing on the ServiceAccount needs annotating.
+  - target: {kind: ConfigMap, name: aws-dash-config}
+    patch: |-
+      - op: replace
+        path: /data/AUTH_MODE
+        value: pod-identity

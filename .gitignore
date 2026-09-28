@@ -3,5 +3,6 @@ dist/
 coverage/
 .DS_Store
 deploy/**/secret.yaml
+deploy/**/*.bak
 .claude/
 .superpowers/
