@@ -43,10 +43,10 @@ export class TtlCache {
     }
   }
 
-  /** Drops every entry; loads already in flight complete for their callers but are not stored. */
+  /** Marks every entry stale (the next get() reloads) without forgetting the last good values; loads already in flight complete for their callers but are not stored. */
   invalidateAll(): void {
     this.epoch++;
-    this.slots.clear();
+    for (const slot of this.slots.values()) slot.fresh_until = 0;
   }
 
   private fresh<T>(key: string): CacheEntry<T> | undefined {

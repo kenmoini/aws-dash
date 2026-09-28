@@ -93,7 +93,7 @@ attached to whichever principal `AUTH_MODE` resolves to. `sts:GetCallerIdentity`
 check) needs no IAM permission at all; every other panel fails closed with an actionable hint — keeping its
 last successfully fetched data — when the policy is missing or incomplete.
 
-## Demo (Phase 1)
+## Demo
 
 1. **Readiness off** → `kubectl -n aws-dash get endpoints -w` shows the pod leave the Service.
 2. **Liveness off** → the container restarts after ~15 s and the flags reset.

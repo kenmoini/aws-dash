@@ -35,8 +35,11 @@ describe("inventory JSON API", () => {
     await app.inject({ url: "/api/aws/vpcs" });
     const res = await app.inject({ method: "POST", url: "/api/aws/refresh" });
     expect(res.statusCode).toBe(204);
-    await app.inject({ url: "/api/aws/vpcs" });
+    aws.fail("vpcs");
+    const vpcs = (await app.inject({ url: "/api/aws/vpcs" })).json();
     expect(aws.calls.vpcs).toBe(2);
+    expect(vpcs.error).toMatch(/^AccessDenied/);
+    expect(vpcs.items).toHaveLength(1); // the reload failed, but the panel keeps its last good row
   });
 
   it("a failing kind keeps its last good items and does not affect other kinds", async () => {

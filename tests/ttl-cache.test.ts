@@ -62,7 +62,7 @@ describe("TtlCache", () => {
     expect(await cache.get("k", async () => { throw new Error("nope"); })).toEqual({ value: null, fetched_at: "2026-01-01T00:00:00.000Z", error: "nope" });
   });
 
-  it("invalidateAll drops entries and discards a load that started before it", async () => {
+  it("invalidateAll expires entries and discards a load that started before it", async () => {
     const cache = new TtlCache(60_000, new FakeClock());
     const gate = deferred<string>();
     let calls = 0;
@@ -73,6 +73,16 @@ describe("TtlCache", () => {
     expect((await pending).value).toBe("stale"); // the caller that waited still gets its answer
     expect((await cache.get("k", async () => "fresh")).value).toBe("fresh"); // but nothing was stored
     expect(calls).toBe(1);
+  });
+
+  it("invalidateAll keeps the last good value for a reload that fails", async () => {
+    const cache = new TtlCache(60_000, new FakeClock());
+    await cache.get("k", async () => ["good"]);
+    cache.invalidateAll();
+    let calls = 0;
+    const entry = await cache.get("k", async () => { calls++; throw new Error("denied"); });
+    expect(calls).toBe(1);
+    expect(entry).toEqual({ value: ["good"], fetched_at: "2026-01-01T00:00:00.000Z", error: "denied" });
   });
 
   it("force while a load is in flight waits for it, then loads again", async () => {
