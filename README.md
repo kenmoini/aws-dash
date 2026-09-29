@@ -63,7 +63,7 @@ Published image: `ghcr.io/kenmoini/aws-dash:main` (also `latest`, tags and short
 |---|---|---|
 | GET | `/` | Runtime page (refreshes every 5 s) + Controls |
 | GET | `/healthz/live`, `/healthz/ready` | `{"status":"ok"}` or 503 `{"status":"failing","reason":"…"}` |
-| GET | `/api/state`, `/api/runtime` | JSON |
+| GET | `/api/state`, `/api/runtime` | JSON; `memory_load.cgroup_limit_bytes` is the cgroup limit the memory control is racing |
 | GET | `/partials/runtime`, `/partials/controls` | htmx fragments |
 | POST | `/controls/liveness`, `/controls/readiness` | form/query `enabled=true\|false` |
 | POST | `/controls/cpu` | `enabled`, `workers` 1–64 (clamped to `CPU_LOAD_MAX_WORKERS`, default CPU count) |
@@ -103,7 +103,7 @@ is a 200 whose body carries an `error`/`reason` field — the cards render it; n
 | `CPU_LOAD_MAX_WORKERS` | CPU count | upper bound for the CPU control |
 | `AUTH_MODE` | `auto` | `auto\|static\|profile\|web-identity\|pod-identity\|imds` — `auto` checks the sources in the order under Credential modes |
 | `AWS_REGION` | — | falls back to `AWS_DEFAULT_REGION`; required for the AWS tab |
-| `AWS_CACHE_TTL_SECONDS` | `60` | how long a cached result — inventory, identity, access-check, IMDS, SPIFFE, Kubernetes — is served before it's refetched |
+| `AWS_CACHE_TTL_SECONDS` | `60` | how long a cached result — inventory, identity, access-check, IMDS, SPIFFE, Kubernetes — is served before it's refetched; a failure with no earlier good result is not cached, so a pod misconfigured at startup recovers on the next request |
 | `AWS_DEBUG` | `false` | logs SDK request metadata |
 | `METRICS_ENABLED` | `true` | `false` → `/metrics` returns 404 |
 | `IMDS_ENABLED` | `true` | `false` → the IMDS card renders an "Unavailable: disabled…" state and skips the probe, instead of being hidden |
