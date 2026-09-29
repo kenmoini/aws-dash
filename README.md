@@ -35,7 +35,10 @@ npm run docs:check     # README routes/variables/metrics and deploy placeholders
 What to expect on a laptop: the Runtime tab shows `orchestrator: none` and no cgroup limits; with `AWS_PROFILE` the AWS
 tab lists your account's resources (or an explicit IAM error per panel); the Identity tab shows mode `profile`, the STS
 caller ARN and the access-check matrix, while the IMDS, SPIFFE and Kubernetes cards read "Unavailable" with the reason.
-Without credentials the AWS panels and the Identity card show the "no credentials found" hint — that is the expected state.
+Without credentials, `auto` falls through to `imds`: the Identity card reads mode `imds` with the hint "the EC2 instance
+metadata service is unreachable…", and the AWS panels ask for `AWS_REGION` if none is set. Run
+`AWS_EC2_METADATA_DISABLED=true npm run dev` (what the container always does) to see the "no credentials found" hint
+instead. Either is the expected state on a laptop.
 
 Container (the `HEALTHCHECK` is only kept with `--format docker`):
 
@@ -97,7 +100,7 @@ is a 200 whose body carries an `error`/`reason` field — the cards render it; n
 | `LOG_LEVEL` | `info` | pino level |
 | `MEMORY_LOAD_MAX_MIB` | `4096` | upper bound for the memory control |
 | `CPU_LOAD_MAX_WORKERS` | CPU count | upper bound for the CPU control |
-| `AUTH_MODE` | `auto` | `auto\|static\|profile\|web-identity\|pod-identity\|imds` — `auto` follows the SDK chain order |
+| `AUTH_MODE` | `auto` | `auto\|static\|profile\|web-identity\|pod-identity\|imds` — `auto` checks the sources in the order under Credential modes |
 | `AWS_REGION` | — | falls back to `AWS_DEFAULT_REGION`; required for the AWS tab |
 | `AWS_CACHE_TTL_SECONDS` | `60` | how long a cached result — inventory, identity, access-check, IMDS, SPIFFE, Kubernetes — is served before it's refetched |
 | `AWS_DEBUG` | `false` | logs SDK request metadata |
@@ -176,12 +179,18 @@ The Kubernetes card needs the Role in `deploy/kubernetes/rbac.yaml` (`get pods`)
 Three acts; each step names what to click, what to run, and what you should see. Steps 1–5 work with no credentials at
 all; 6–9 need the AWS tab working; 10–12 need a workload-identity overlay.
 
+Reach the app with `kubectl -n aws-dash port-forward svc/aws-dash 8080:8080` (namespace `aws-dash-ztwim` on the `ztwim`
+overlay, and substitute it in every `kubectl -n aws-dash` below). A port-forward keeps working while the pod is unready; a
+Route answers 503 as soon as step 1 removes the only replica from the Service, so through a Route you cannot click step 2
+until the pod restarts or you `kubectl -n aws-dash delete pod -l app=aws-dash`. Step 3 needs metrics-server, which EKS
+does not install by default.
+
 **Act 1 — the container is a real thing (Runtime tab)**
 
-1. **Readiness off** → `kubectl -n aws-dash get endpoints -w` shows the pod leave the Service; `/healthz/ready` returns 503.
-2. **Liveness off** → the container restarts after ~15 s (three failed probes) and every control resets.
-3. **CPU load**, 2 workers → `kubectl top pod -n aws-dash`; `aws_dash_cpu_load_workers` reads 2.
-4. **Memory load** above the 512 Mi limit → the Runtime card's allocated bar climbs, then the container dies:
+1. **Fail readiness** → `kubectl -n aws-dash get endpoints -w` shows the pod leave the Service; `/healthz/ready` returns 503.
+2. **Fail liveness** → the container restarts after ~15 s (three failed probes) and every control resets.
+3. **CPU load → Start** with 2 workers → `kubectl top pod -n aws-dash`; `aws_dash_cpu_load_workers` reads 2.
+4. **Memory load → Allocate** more than the 512 Mi limit → the Memory load bar in Controls climbs, then the container dies:
    `kubectl -n aws-dash get pod -o jsonpath='{.items[0].status.containerStatuses[0].lastState}'` shows `OOMKilled`, exit 137.
 5. **Crash** with exit code 3 → `lastState.terminated.exitCode: 3` and the restart count goes up.
 
@@ -191,7 +200,8 @@ all; 6–9 need the AWS tab working; 10–12 need a workload-identity overlay.
 7. Detach the read-only policy from the principal, click **Refresh all** → every panel except Account shows the
    `AccessDenied` hint but keeps its last data (`sts:GetCallerIdentity` needs no permission); re-attach to recover.
 8. Open **Identity → Access check**, click **re-run** while the policy is detached: every row except `sts:GetCallerIdentity`
-   flips to *denied*; re-attach and re-run to watch them turn *allowed*.
+   flips to *denied* (`iam:GetRole` reads *skipped* when the caller is an IAM user rather than an assumed role); re-attach and
+    re-run to watch them turn *allowed*.
 9. Wait past `AWS_CACHE_TTL_SECONDS` and reload: `aws_dash_credential_resolutions_total` did not increment — the
    memoized credentials are reused until they expire.
 
@@ -213,7 +223,7 @@ Every hint below is the text the app renders; search for it in the card or panel
 
 | You see | It means | Do |
 |---|---|---|
-| `auto: no credentials found (set AWS_ACCESS_KEY_ID/…)` | `AUTH_MODE=auto` matched nothing | set the variables for one mode, or on Kubernetes create the Secret and restart the pod |
+| `auto: no credentials found (set AWS_ACCESS_KEY_ID/…)` | `AUTH_MODE=auto` matched nothing and `AWS_EC2_METADATA_DISABLED=true` (otherwise you see the IMDS row below) | set the variables for one mode, or on Kubernetes create the Secret and restart the pod |
 | `AWS_REGION is not set; set it in the ConfigMap or environment` | no region for the SDK | set `AWS_REGION` (or `AWS_DEFAULT_REGION`) |
 | `AccessDenied … grant the identity the read-only policy in deploy/aws/aws-dash-readonly-policy.json` | the principal lacks the policy | attach it; new policies take a few seconds to apply |
 | `the web-identity token file is missing or unreadable; is the spiffe-helper sidecar or the IRSA webhook running?` | `AWS_WEB_IDENTITY_TOKEN_FILE` points at nothing | `kubectl exec … -- ls -l <file>`; check the sidecar/webhook |
