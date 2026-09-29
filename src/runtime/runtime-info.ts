@@ -83,13 +83,14 @@ function detectContainerRuntime(root: string, env: EnvLookup): string {
   if (exists(root, "run/.containerenv")) return "podman";
   if (exists(root, ".dockerenv")) return "docker";
   const fromEnv = blank(env("container"));
-  if (fromEnv) return fromEnv;
+  // UBI images set container=oci unconditionally, which says nothing about the runtime; cgroup evidence beats it.
+  if (fromEnv && fromEnv !== "oci") return fromEnv;
   const cgroup = readText(root, "proc/self/cgroup") ?? "";
   if (cgroup.includes("crio")) return "cri-o";
   if (cgroup.includes("containerd")) return "containerd";
   if (cgroup.includes("docker")) return "docker";
   if (cgroup.includes("kubepods")) return "kubernetes";
-  return "none";
+  return fromEnv ?? "none";
 }
 
 function detectOrchestrator(root: string, env: EnvLookup): "kubernetes" | "none" {

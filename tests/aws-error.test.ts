@@ -19,6 +19,8 @@ describe("awsErrorFrom", () => {
   it.each([
     ["CredentialsProviderError", "Could not load credentials from any providers", undefined, /no usable credentials; set AUTH_MODE/],
     ["CredentialsProviderError", "Web identity token file not found", undefined, /spiffe-helper sidecar or the IRSA webhook/],
+    ["CredentialsProviderError", "Failed to fetch credentials from http://169.254.170.23/v1/credentials: connect ECONNREFUSED", undefined, /eks-pod-identity-agent/],
+    ["ProviderError", "Container credentials request failed: AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE could not be read", undefined, /eks-pod-identity-agent/],
     ["InvalidIdentityToken", "No OpenIDConnect provider found in your account for https://x", 400, /IAM OIDC provider URL must equal the token's iss/],
     ["IDPCommunicationError", "Unable to reach the identity provider", 400, /discovery endpoint/],
     ["ExpiredTokenException", "Token expired", 400, /clock skew/],

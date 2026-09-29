@@ -66,7 +66,11 @@ export class SpiffePanel {
     const socket = this.opts.socket;
     if (socket === undefined) return this.unavailable("SPIFFE_ENDPOINT_SOCKET is not set: no SPIRE Workload API socket is mounted (normal outside the ztwim overlay)");
     const entry = await this.opts.cache.get<SpiffeInfo>(SpiffePanel.KEY, () => this.load(socket), force);
-    return entry.value as SpiffeInfo;
+    const info = entry.value as SpiffeInfo;
+    if (info.x509 === null) return info;
+    // The cached summary ages for up to a TTL; the countdown is recomputed for every caller.
+    const expiresIn = Math.floor((new Date(info.x509.not_after).getTime() - this.opts.clock.now().getTime()) / 1000);
+    return { ...info, x509: { ...info.x509, expires_in_seconds: expiresIn } };
   }
 
   peek(): SpiffeInfo | null {
@@ -86,19 +90,24 @@ export class SpiffePanel {
     let api: WorkloadApi | undefined;
     try {
       api = this.opts.createApi(socket, this.timeoutMs);
+      // Both RPCs share one channel and one deadline; running them together bounds the worst case to one deadline, not two.
+      const [x509Result, jwtResult] = await Promise.allSettled([api.fetchX509(), api.fetchJwt(this.opts.audience)]);
       let x509: X509Summary | null = null;
       let x509Error: string | null = null;
-      try {
-        x509 = summarizeX509(await api.fetchX509(), now);
-      } catch (err) {
-        x509Error = describeWorkloadApiError(err, socket);
+      if (x509Result.status === "fulfilled") {
+        try {
+          x509 = summarizeX509(x509Result.value, now);
+        } catch (err) {
+          x509Error = describeWorkloadApiError(err, socket);
+        }
+      } else {
+        x509Error = describeWorkloadApiError(x509Result.reason, socket);
       }
       let jwt: JwtSvidSummary;
-      try {
-        const raw = await api.fetchJwt(this.opts.audience);
-        jwt = { ...decodeJwtForDisplay(raw.token), spiffe_id: raw.spiffe_id, audience: this.opts.audience };
-      } catch (err) {
-        jwt = { claims: {}, issued_at: null, expires_at: null, error: describeWorkloadApiError(err, socket), spiffe_id: null, audience: this.opts.audience };
+      if (jwtResult.status === "fulfilled") {
+        jwt = { ...decodeJwtForDisplay(jwtResult.value.token), spiffe_id: jwtResult.value.spiffe_id, audience: this.opts.audience };
+      } else {
+        jwt = { claims: {}, issued_at: null, expires_at: null, error: describeWorkloadApiError(jwtResult.reason, socket), spiffe_id: null, audience: this.opts.audience };
       }
       if (x509 === null && jwt.error !== null) return { ...this.unavailable(x509Error ?? jwt.error), fetched_at: now.toISOString() };
       return { available: true, reason: null, socket, x509, x509_error: x509Error, jwt, fetched_at: now.toISOString() };

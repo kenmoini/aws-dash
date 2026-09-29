@@ -4,6 +4,7 @@ import { settingsFromEnv } from "../../src/config.js";
 import type { ImdsFetch } from "../../src/imds/imds-client.js";
 import { CpuLoad } from "../../src/load/cpu-load.js";
 import { MemoryLoad } from "../../src/load/memory-load.js";
+import { readCgroupInfo } from "../../src/runtime/runtime-info.js";
 import { RuntimeState } from "../../src/state/runtime-state.js";
 import { StateService } from "../../src/state/state-service.js";
 import { FakeAccessCheckClients } from "./fake-access-clients.js";
@@ -48,6 +49,7 @@ export async function testApp(opts: TestAppOptions = {}) {
   const state = new RuntimeState(clock);
   const cpu = new CpuLoad({ maxWorkers: 2, factory: workers.factory });
   const memory = new MemoryLoad({ chunkMib: 1, clock });
+  const fsRoot = opts.fsRoot ?? "/nonexistent-root";
   const aws = new FakeAwsProvider();
   const sts = new FakeSts();
   const accessClients = new FakeAccessCheckClients(sts);
@@ -56,8 +58,8 @@ export async function testApp(opts: TestAppOptions = {}) {
   const k8s = new FakeK8sClient();
   const fake = opts.credentials ? fakeCredentialProvider(settings, env, opts.credentials) : undefined;
   const deps = createDeps({
-    settings, env, clock, logger: pino({ level: "silent" }), fsRoot: opts.fsRoot ?? "/nonexistent-root",
-    state, cpu, memory, stateService: new StateService(state, cpu, memory, settings, clock),
+    settings, env, clock, logger: pino({ level: "silent" }), fsRoot,
+    state, cpu, memory, stateService: new StateService(state, cpu, memory, settings, clock, () => readCgroupInfo(fsRoot)),
     exit: exit.fn, crashDelayMs: 10, createAwsProvider: () => aws,
     createStsClient: () => sts,
     identityReadFile: opts.readFile ?? (() => { throw Object.assign(new Error("ENOENT: no token file in tests"), { code: "ENOENT" }); }),

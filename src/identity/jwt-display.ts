@@ -14,13 +14,9 @@ const COMPACT_JWT = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
 export function normalizeToken(raw: string): string {
   const trimmed = raw.trim();
   if (COMPACT_JWT.test(trimmed)) return trimmed;
-  try {
-    const inner = Buffer.from(trimmed, "base64").toString("utf8").trim();
-    if (COMPACT_JWT.test(inner)) return inner;
-  } catch {
-    // fall through: not base64
-  }
-  return trimmed;
+  // Buffer.from(…, "base64") never throws: invalid characters are dropped, so a non-JWT simply fails the regex.
+  const inner = Buffer.from(trimmed, "base64").toString("utf8").trim();
+  return COMPACT_JWT.test(inner) ? inner : trimmed;
 }
 
 function failed(error: string): JwtSummary {

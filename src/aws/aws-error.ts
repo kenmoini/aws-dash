@@ -23,7 +23,10 @@ interface ErrorLike {
   $metadata?: { httpStatusCode?: number };
 }
 
-const DENIED = new Set(["AccessDenied", "AccessDeniedException", "UnauthorizedOperation", "UnauthorizedAccess", "AuthorizationError"]);
+/** Error names that mean "the policy denied this action" (shared with the access-check classifier). */
+export const DENIED_ERROR_NAMES: ReadonlySet<string> = new Set(["AccessDenied", "AccessDeniedException", "UnauthorizedOperation", "UnauthorizedAccess", "AuthorizationError"]);
+/** Error names that mean "the credentials themselves are unusable" (shared with the access-check classifier). */
+export const CREDENTIAL_ERROR_NAMES: ReadonlySet<string> = new Set(["CredentialsProviderError", "ProviderError", "ExpiredToken", "ExpiredTokenException", "InvalidClientTokenId", "InvalidIdentityToken", "UnrecognizedClientException", "AuthFailure"]);
 const NETWORK_CODES = new Set(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "ETIMEDOUT", "ECONNRESET", "EHOSTUNREACH"]);
 export const POLICY_HINT =
   "grant the identity the read-only policy in deploy/aws/aws-dash-readonly-policy.json (new IAM policy changes can take a few seconds to apply)";
@@ -40,6 +43,9 @@ export function awsErrorFrom(err: unknown): AwsError {
     new AwsError(hint ? `${name}: ${message} — ${hint}` : `${name}: ${message}`, code ?? name, status, { cause: err });
 
   if (message.includes("Region is missing")) return wrap("set AWS_REGION");
+  if ((name === "ProviderError" || name === "CredentialsProviderError") && /container credentials|169\.254\.170\.23|fd00:ec2::23|AWS_CONTAINER_/i.test(message)) {
+    return wrap("the container credentials endpoint did not answer: on EKS, is the eks-pod-identity-agent add-on installed and a Pod Identity association created for this service account?");
+  }
   if ((name === "ProviderError" || name === "CredentialsProviderError") && /instance metadata|IMDS|169\.254\.169\.254/i.test(message)) {
     return wrap(
       "the EC2 instance metadata service is unreachable: not running on EC2, or the pod cannot reach IMDS (hop limit 1) — provide credentials for another mode, or set AWS_EC2_METADATA_DISABLED=true so the app stops trying",
@@ -55,10 +61,10 @@ export function awsErrorFrom(err: unknown): AwsError {
   }
   if (name === "IDPCommunicationError") return wrap("STS could not reach the token issuer's discovery endpoint; the SPIRE OIDC Route must be public with a trusted certificate");
   if (name === "ExpiredToken" || name === "ExpiredTokenException") return wrap("the token has expired: check clock skew, or whether the sidecar that refreshes the token file has stopped");
-  if (DENIED.has(name) && /AssumeRoleWithWebIdentity/.test(message)) {
+  if (DENIED_ERROR_NAMES.has(name) && /AssumeRoleWithWebIdentity/.test(message)) {
     return wrap("the role's trust policy rejected this identity: its StringEquals conditions on <issuer>:sub and <issuer>:aud must match the token's sub and aud");
   }
-  if (DENIED.has(name) || status === 403) return wrap(POLICY_HINT);
+  if (DENIED_ERROR_NAMES.has(name) || status === 403) return wrap(POLICY_HINT);
   if (name === "TimeoutError" || name === "AbortError" || (code !== null && NETWORK_CODES.has(code))) {
     return wrap("network egress to AWS is blocked or the region endpoint is wrong");
   }

@@ -18,9 +18,10 @@
 <table class="k8s">
   <thead><tr><th>container</th><th>ready</th><th>restarts</th><th>state</th><th>last terminated</th></tr></thead>
   <tbody>
-<% for (const c of i.pod.containers) { %>
+<% const rows = [...i.pod.init_containers.map((c) => ({ ...c, label: c.name + " (init)" })), ...i.pod.containers.map((c) => ({ ...c, label: c.name }))]; %>
+<% for (const c of rows) { %>
     <tr>
-      <td><%= c.name %></td>
+      <td><%= c.label %></td>
       <td><span class="badge <%= c.ready ? "ok" : "warn" %>"><%= c.ready ? "yes" : "no" %></span></td>
       <td><%= c.restart_count %></td>
       <td><%= c.state %><% if (c.started_at !== null) { %> since <%= fmt.time(c.started_at) %><% } %></td>

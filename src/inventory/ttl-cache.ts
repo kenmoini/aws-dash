@@ -12,7 +12,9 @@ interface Slot {
   epoch: number;
 }
 
-/** Per-key TTL cache: one load at a time per key; a failed reload keeps the last good value and records the error. */
+/** Per-key TTL cache: one load at a time per key; a failed reload keeps the last good value (and the error) for the TTL,
+ *  while a failure with nothing good to keep is retried on the next get() so a pod that was misconfigured at startup
+ *  (say, a token file the sidecar has not written yet) recovers as soon as the cause does. */
 export class TtlCache {
   private readonly slots = new Map<string, Slot>();
   private readonly inflight = new Map<string, Promise<CacheEntry<unknown>>>();
@@ -71,7 +73,10 @@ export class TtlCache {
     } catch (err) {
       entry = { value: previous, fetched_at: this.clock.now().toISOString(), error: this.describeError(err) };
     }
-    if (this.epoch === epoch) this.slots.set(key, { entry, fresh_until: this.clock.now().getTime() + this.ttlMs, epoch });
+    if (this.epoch === epoch) {
+      const keep = entry.error === null || previous !== null;
+      this.slots.set(key, { entry, fresh_until: keep ? this.clock.now().getTime() + this.ttlMs : 0, epoch });
+    }
     return entry;
   }
 }

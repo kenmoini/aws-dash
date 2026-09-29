@@ -112,6 +112,37 @@ describe("SpiffePanel", () => {
     expect(info.reason).toContain('Could not parse target name ""');
   });
 
+  it("fetches the X.509 and JWT SVIDs concurrently, so one slow call does not serialise the other", async () => {
+    const api = new FakeWorkloadApi();
+    let releaseX509!: () => void;
+    const jwtStarted = new Promise<void>((resolve) => { releaseX509 = resolve; });
+    const baseX509 = api.fetchX509.bind(api);
+    const baseJwt = api.fetchJwt.bind(api);
+    api.fetchX509 = async () => { await jwtStarted; return baseX509(); }; // completes only once the JWT fetch has begun
+    api.fetchJwt = async (aud) => { releaseX509(); return baseJwt(aud); };
+    const { p } = panel(api);
+    let timer: NodeJS.Timeout | undefined;
+    const deadline = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("sequential fetches deadlocked")), 500); });
+    try {
+      const info = await Promise.race([p.get(), deadline]);
+      expect(info.available).toBe(true);
+      expect(info.x509?.spiffe_id).toBe(FIXTURE_SPIFFE_ID);
+      expect(info.jwt?.error).toBeNull();
+    } finally {
+      clearTimeout(timer);
+    }
+    expect(api.calls.close).toBe(1);
+  });
+
+  it("recomputes expires_in_seconds on every get while the cached entry ages", async () => {
+    const api = new FakeWorkloadApi();
+    const { p, clock } = panel(api);
+    const first = (await p.get()).x509!.expires_in_seconds;
+    clock.advance(10_000);
+    expect((await p.get()).x509!.expires_in_seconds).toBe(first - 10);
+    expect(api.calls.x509).toBe(1);
+  });
+
   it("caches for the TTL, force reloads, and invalidateAll expires", async () => {
     const api = new FakeWorkloadApi();
     const { p, clock } = panel(api);

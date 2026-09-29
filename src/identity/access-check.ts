@@ -5,7 +5,7 @@ import { GetRoleCommand, IAMClient, ListAccountAliasesCommand } from "@aws-sdk/c
 import { ListBucketsCommand, S3Client } from "@aws-sdk/client-s3";
 import { GetCallerIdentityCommand, STSClient, type GetCallerIdentityCommandOutput } from "@aws-sdk/client-sts";
 import type { Logger } from "pino";
-import { awsErrorFrom, firstLine } from "../aws/aws-error.js";
+import { CREDENTIAL_ERROR_NAMES, DENIED_ERROR_NAMES, awsErrorFrom, firstLine } from "../aws/aws-error.js";
 import { clientDefaults, type AwsClientDefaults } from "../aws/client-defaults.js";
 import type { Clock } from "../clock.js";
 import type { AppSettings } from "../config.js";
@@ -50,19 +50,17 @@ export interface AccessCheckObserver {
   checked(rows: AccessCheckRow[]): void;
 }
 
-const DENIED = new Set(["AccessDenied", "AccessDeniedException", "UnauthorizedOperation", "UnauthorizedAccess", "AuthorizationError"]);
-const CREDENTIAL = new Set(["CredentialsProviderError", "ProviderError", "ExpiredToken", "ExpiredTokenException", "InvalidClientTokenId", "InvalidIdentityToken", "UnrecognizedClientException", "AuthFailure"]);
 
 export function classify(err: unknown): { result: AccessCheckResult; code: string | null; message: string | null } {
   const e = (typeof err === "object" && err !== null ? err : {}) as { name?: unknown; message?: unknown; $metadata?: { httpStatusCode?: number } };
   const name = typeof e.name === "string" && e.name ? e.name : "Error";
   const message = firstLine(typeof e.message === "string" ? e.message : String(err));
   const status = e.$metadata?.httpStatusCode;
-  if (CREDENTIAL.has(name)) return { result: "credential", code: name, message };
+  if (CREDENTIAL_ERROR_NAMES.has(name)) return { result: "credential", code: name, message };
   // A trust-policy rejection of AssumeRole(WithWebIdentity) surfaces as AccessDenied but is a
   // credential failure, not a policy denial of the action being probed (mirrors aws-error.ts).
-  if ((DENIED.has(name) || status === 403) && /AssumeRole/.test(message)) return { result: "credential", code: name, message };
-  if (DENIED.has(name) || status === 403) return { result: "denied", code: name, message };
+  if ((DENIED_ERROR_NAMES.has(name) || status === 403) && /AssumeRole/.test(message)) return { result: "credential", code: name, message };
+  if (DENIED_ERROR_NAMES.has(name) || status === 403) return { result: "denied", code: name, message };
   return { result: "error", code: name, message };
 }
 

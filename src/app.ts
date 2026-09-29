@@ -98,7 +98,7 @@ export function createDeps(overrides: Partial<AppDeps> = {}): AppDeps {
   const createAwsProvider = overrides.createAwsProvider ?? (() => createLiveAwsProvider({ settings, credentials, logger }));
   const fsRoot = overrides.fsRoot ?? "/";
   const version = overrides.version ?? pkg.version;
-  const stateService = overrides.stateService ?? new StateService(state, cpu, memory, settings, clock);
+  const stateService = overrides.stateService ?? new StateService(state, cpu, memory, settings, clock, () => readCgroupInfo(fsRoot));
   const metrics = overrides.metrics ?? new Metrics({
     version, nodeVersion: process.version, authMode: credentials.describe().mode, startedAt: state.startedAt,
     snapshot: () => stateService.snapshot(), cgroup: () => readCgroupInfo(fsRoot), now: () => clock.now(),

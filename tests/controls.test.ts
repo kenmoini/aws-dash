@@ -87,6 +87,22 @@ describe("controls", () => {
     expect(off.json().memory_load).toMatchObject({ active: false, allocated_mib: 0 });
   });
 
+  it("memory warns when the target plus what the cgroup already uses exceeds the limit, and exposes the limit in JSON", async () => {
+    const MIB = 1024 * 1024;
+    // The fake's memory.current never grows with the allocation, so the view subtracts what it has allocated and still sees
+    // >= 4 MiB of other usage: 1 MiB target + 4 MiB baseline > 4 MiB limit, although the target alone (1 MiB) is well under it.
+    const root = new FakeRoot().write("sys/fs/cgroup/cgroup.controllers", "memory").write("sys/fs/cgroup/memory.max", String(4 * MIB)).write("sys/fs/cgroup/memory.current", String(5 * MIB));
+    const { app, memory } = await testApp({ fsRoot: root.path });
+    close = async () => { await app.close(); root.cleanup(); };
+    const res = await post(app, "/controls/memory", "enabled=true&mib=1", { "hx-request": "true" });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain("exceeds the cgroup limit");
+    expect(res.body).toContain("already uses");
+    expect((await app.inject({ url: "/api/state" })).json().memory_load.cgroup_limit_bytes).toBe(4 * MIB);
+    await memory.settled();
+    memory.stop();
+  });
+
   it("memory validates mib against MEMORY_LOAD_MAX_MIB", async () => {
     const { app } = await testApp({ env: { MEMORY_LOAD_MAX_MIB: "8" } });
     close = () => app.close();

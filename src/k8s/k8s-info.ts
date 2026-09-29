@@ -24,6 +24,8 @@ export interface K8sPod {
   service_account: string | null;
   qos_class: string | null;
   containers: K8sContainer[];
+  /** Native sidecars (initContainers with restartPolicy: Always) live here, with their own restart counts. */
+  init_containers: K8sContainer[];
 }
 
 export interface K8sNode {
@@ -130,6 +132,7 @@ function mapPod(pod: V1Pod, name: string, namespace: string): K8sPod {
     service_account: str(pod.spec?.serviceAccountName),
     qos_class: str(pod.status?.qosClass),
     containers: (pod.status?.containerStatuses ?? []).map(mapContainer),
+    init_containers: (pod.status?.initContainerStatuses ?? []).map(mapContainer),
   };
 }
 

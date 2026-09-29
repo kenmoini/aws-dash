@@ -29,11 +29,19 @@ describe("K8sInfoService", () => {
         name: "aws-dash-7d9f-abcde", namespace: "aws-dash", node: "ip-10-0-1-23.ec2.internal", phase: "Running", started_at: "2025-12-31T23:00:00.000Z", service_account: "aws-dash", qos_class: "Burstable",
         containers: [{ name: "aws-dash", image: "ghcr.io/kenmoini/aws-dash:main", ready: true, restart_count: 2, state: "running", started_at: "2025-12-31T23:50:00.000Z",
           last_terminated: { reason: "OOMKilled", exit_code: 137, finished_at: "2025-12-31T23:49:00.000Z" } }],
+        init_containers: [],
       },
       node: { name: "ip-10-0-1-23.ec2.internal", instance_type: "m6i.large", zone: "us-east-1a", region: "us-east-1", arch: "amd64", os_image: "Amazon Linux 2023", kubelet_version: "v1.33.1-eks-1",
         container_runtime: "containerd://1.7.27", provider_id: "aws:///us-east-1a/i-0abc123", allocatable_cpu: "1930m", allocatable_memory: "7220Mi" },
     });
     expect(client.calls).toEqual({ pod: 1, node: 1 });
+  });
+
+  it("lists init containers (native sidecars such as spiffe-helper) with their own restart counts", async () => {
+    const client = new FakeK8sClient();
+    client.pod.status!.initContainerStatuses = [{ name: "spiffe-helper", image: "registry.redhat.io/zero-trust-workload-identity-manager/spiffe-helper-rhel9:v0.11.0", imageID: "sha256:def", ready: true, restartCount: 1, state: { running: { startedAt: new Date("2025-12-31T23:00:00Z") } } }];
+    const info = await service(client).svc.get();
+    expect(info.pod?.init_containers).toEqual([{ name: "spiffe-helper", image: "registry.redhat.io/zero-trust-workload-identity-manager/spiffe-helper-rhel9:v0.11.0", ready: true, restart_count: 1, state: "running", started_at: "2025-12-31T23:00:00.000Z", last_terminated: null }]);
   });
 
   it("describes waiting and terminated container states", async () => {
@@ -135,6 +143,13 @@ describe("Kubernetes routes", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ available: true, pod: { name: "aws-dash-7d9f-abcde", containers: [{ restart_count: 2 }] }, node: { instance_type: "m6i.large" } });
     expect((await app.inject({ url: "/identity" })).body).toContain('data-k8s-panel hx-get="/partials/k8s" hx-trigger="load"');
+  });
+
+  it("the partial marks init containers so sidecar restarts are visible", async () => {
+    const { app, k8s } = await testApp({ env: IN_CLUSTER });
+    close = () => app.close();
+    k8s.pod.status!.initContainerStatuses = [{ name: "spiffe-helper", image: "x", imageID: "y", ready: true, restartCount: 1 }];
+    expect((await app.inject({ url: "/partials/k8s" })).body).toContain("spiffe-helper (init)");
   });
 
   it("the partial highlights OOMKilled, shows the node, and offers refresh", async () => {

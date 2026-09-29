@@ -57,9 +57,13 @@ describe("TtlCache", () => {
     expect(calls).toBe(0);
   });
 
-  it("reports value null when the very first load fails", async () => {
+  it("does not cache a failed first load: the next get retries instead of serving the error for the TTL", async () => {
     const cache = new TtlCache(1000, new FakeClock());
     expect(await cache.get("k", async () => { throw new Error("nope"); })).toEqual({ value: null, fetched_at: "2026-01-01T00:00:00.000Z", error: "nope" });
+    expect(cache.peek("k")).toEqual({ value: null, fetched_at: "2026-01-01T00:00:00.000Z", error: "nope" });
+    let calls = 0;
+    expect(await cache.get("k", async () => { calls++; return ["now"]; })).toEqual({ value: ["now"], fetched_at: "2026-01-01T00:00:00.000Z", error: null });
+    expect(calls).toBe(1);
   });
 
   it("invalidateAll expires entries and discards a load that started before it", async () => {

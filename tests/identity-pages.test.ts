@@ -38,7 +38,7 @@ describe("identity page and partial", () => {
     }
   });
 
-  it("nothing token-shaped reaches the logs, even at trace level with AWS_DEBUG on", async () => {
+  it("nothing token-shaped reaches the app's own log lines at trace level (FakeSts replaces the client, so the SDK's AWS_DEBUG logger middleware is not exercised here)", async () => {
     const lines: string[] = [];
     const logger = pino({ level: "trace" }, { write: (chunk: string) => { lines.push(chunk); } });
     const { app } = await irsa({ overrides: { logger } });

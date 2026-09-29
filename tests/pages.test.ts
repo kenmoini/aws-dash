@@ -59,6 +59,7 @@ describe("runtime page and partials", () => {
     memory.start(2);
     const allocating = await app.inject({ url: "/partials/controls" });
     expect(allocating.body).toContain('hx-trigger="every 1s"');
+    expect(allocating.body).toContain('hx-sync="this:replace"');
     await memory.settled();
     memory.stop();
   });

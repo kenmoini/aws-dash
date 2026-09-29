@@ -13,6 +13,10 @@ describe("container runtime detection", () => {
   it("podman via /run/.containerenv", () => expect(get(root().write("run/.containerenv", "")).container_runtime).toBe("podman"));
   it("docker via /.dockerenv", () => expect(get(root().write(".dockerenv", "")).container_runtime).toBe("docker"));
   it("$container env var", () => expect(get(root(), { container: "oci" }).container_runtime).toBe("oci"));
+  it("$container=oci is only the UBI default, so cgroup evidence wins over it", () =>
+    expect(get(root().write("proc/self/cgroup", "0::/kubepods.slice/kubepods-burstable.slice/crio-abc.scope"), { container: "oci" }).container_runtime).toBe("cri-o"));
+  it("a specific $container value still wins over cgroup evidence", () =>
+    expect(get(root().write("proc/self/cgroup", "0::/kubepods/crio-abc"), { container: "podman" }).container_runtime).toBe("podman"));
   it.each([
     ["0::/kubepods.slice/crio-abc.scope", "cri-o"],
     ["0::/kubepods/besteffort/containerd-abc", "containerd"],

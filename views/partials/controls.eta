@@ -1,7 +1,8 @@
-<% const s = it.snapshot, fmt = it.fmt, limit = it.memory_limit_bytes; %>
-<% const MIB = 1024 * 1024; const overLimit = limit !== null && s.memory_load.active && s.memory_load.target_mib * MIB > limit; %>
+<% const s = it.snapshot, fmt = it.fmt, limit = it.memory_limit_bytes, usage = it.memory_usage_bytes ?? null; %>
+<% const MIB = 1024 * 1024; const baseline = usage === null ? 0 : Math.max(0, usage - s.memory_load.allocated_mib * MIB); %>
+<% const overLimit = limit !== null && s.memory_load.active && s.memory_load.target_mib * MIB + baseline > limit; %>
 <% const controlsTrigger = s.memory_load.phase === "allocating" ? "every 1s" : "every 5s [!document.activeElement || !document.activeElement.closest('#controls')]"; %>
-<section id="controls" class="card" hx-get="/partials/controls" hx-trigger="<%= controlsTrigger %>" hx-swap="outerHTML">
+<section id="controls" class="card" hx-get="/partials/controls" hx-trigger="<%= controlsTrigger %>" hx-swap="outerHTML" hx-sync="this:replace">
   <h2>Controls</h2>
   <div id="control-error" class="error" hidden></div>
 <% if (!s.controls_enabled) { %>
@@ -39,7 +40,7 @@
 <% } %>
 <% if (s.memory_load.active) { %>
 <% if (overLimit) { %>
-      <p class="warning">Target <%= fmt.mib(s.memory_load.target_mib) %> exceeds the cgroup limit — expect OOMKilled.</p>
+      <p class="warning">Target <%= fmt.mib(s.memory_load.target_mib) %><% if (baseline > 0) { %> plus the <%= fmt.bytes(baseline) %> the container already uses<% } %> exceeds the cgroup limit — expect OOMKilled.</p>
 <% } %>
       <div class="progress"><span style="width: <%= Math.min(100, Math.round(100 * s.memory_load.allocated_mib / Math.max(1, s.memory_load.target_mib))) %>%"></span></div>
       <button hx-post="/controls/memory" hx-vals='{"enabled":"false"}' hx-target="#controls" hx-swap="outerHTML">Release</button>
