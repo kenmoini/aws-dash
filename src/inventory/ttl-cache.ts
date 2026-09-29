@@ -13,8 +13,9 @@ interface Slot {
 }
 
 /** Per-key TTL cache: one load at a time per key; a failed reload keeps the last good value (and the error) for the TTL,
- *  while a failure with nothing good to keep is retried on the next get() so a pod that was misconfigured at startup
- *  (say, a token file the sidecar has not written yet) recovers as soon as the cause does. */
+ *  while a loader that *rejects* with nothing good to keep is retried on the next get(). Loaders that resolve with an
+ *  error-carrying value (the side cards) are cached like any value; IdentityService expires its own entry when
+ *  credentials were unresolved, so a pod whose sidecar had not written the token at startup recovers on its own. */
 export class TtlCache {
   private readonly slots = new Map<string, Slot>();
   private readonly inflight = new Map<string, Promise<CacheEntry<unknown>>>();

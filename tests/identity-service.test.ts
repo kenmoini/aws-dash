@@ -131,6 +131,14 @@ describe("IdentityService via /api/identity", () => {
     expect(sts.calls).toBe(0);
   });
 
+  it("does not cache a load whose credentials could not be resolved: the next request retries (e.g. once the sidecar has written the token file)", async () => {
+    const { app, credentialResolves } = await testApp({ env: WEB, credentials: { spec: { token_file: WEB.AWS_WEB_IDENTITY_TOKEN_FILE }, credentials: Object.assign(new Error("Web identity token file not found"), { name: "CredentialsProviderError" }) }, readFile: () => IRSA_TOKEN });
+    close = () => app.close();
+    await app.inject({ url: "/api/identity" });
+    await app.inject({ url: "/api/identity" });
+    expect(credentialResolves()).toBe(2);
+  });
+
   it("a mode that cannot be built reports the top-level error and nothing else", async () => {
     const { app } = await testApp({ env: { AUTH_MODE: "web-identity" }, credentials: { factoryError: Object.assign(new Error("AUTH_MODE web-identity requires AWS_WEB_IDENTITY_TOKEN_FILE, AWS_ROLE_ARN"), { name: "AwsError" }) } });
     close = () => app.close();

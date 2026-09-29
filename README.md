@@ -103,7 +103,7 @@ is a 200 whose body carries an `error`/`reason` field — the cards render it; n
 | `CPU_LOAD_MAX_WORKERS` | CPU count | upper bound for the CPU control |
 | `AUTH_MODE` | `auto` | `auto\|static\|profile\|web-identity\|pod-identity\|imds` — `auto` checks the sources in the order under Credential modes |
 | `AWS_REGION` | — | falls back to `AWS_DEFAULT_REGION`; required for the AWS tab |
-| `AWS_CACHE_TTL_SECONDS` | `60` | how long a cached result — inventory, identity, access-check, IMDS, SPIFFE, Kubernetes — is served before it's refetched; a failure with no earlier good result is not cached, so a pod misconfigured at startup recovers on the next request |
+| `AWS_CACHE_TTL_SECONDS` | `60` | how long a cached result — inventory, identity, access-check, IMDS, SPIFFE, Kubernetes — is served before it's refetched; an AWS panel's first failure and an Identity load with unresolved credentials are not cached, so a pod misconfigured at startup recovers on the next request |
 | `AWS_DEBUG` | `false` | logs SDK request metadata |
 | `METRICS_ENABLED` | `true` | `false` → `/metrics` returns 404 |
 | `IMDS_ENABLED` | `true` | `false` → the IMDS card renders an "Unavailable: disabled…" state and skips the probe, instead of being hidden |

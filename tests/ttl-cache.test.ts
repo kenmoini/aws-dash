@@ -66,6 +66,26 @@ describe("TtlCache", () => {
     expect(calls).toBe(1);
   });
 
+  it("concurrent callers during a failing first load share the one attempt", async () => {
+    const cache = new TtlCache(1000, new FakeClock());
+    let calls = 0;
+    const loader = async () => { calls++; await new Promise((r) => setTimeout(r, 5)); throw new Error("nope"); };
+    const [a, b] = await Promise.all([cache.get("k", loader), cache.get("k", loader)]);
+    expect(a.error).toBe("nope");
+    expect(b).toEqual(a);
+    expect(calls).toBe(1);
+  });
+
+  it("a second consecutive first-load failure is also left unfresh", async () => {
+    const cache = new TtlCache(1000, new FakeClock());
+    let calls = 0;
+    const loader = async () => { calls++; throw new Error(`nope ${calls}`); };
+    expect((await cache.get("k", loader)).error).toBe("nope 1");
+    expect((await cache.get("k", loader)).error).toBe("nope 2");
+    expect((await cache.get("k", loader)).error).toBe("nope 3");
+    expect(calls).toBe(3);
+  });
+
   it("invalidateAll expires entries and discards a load that started before it", async () => {
     const cache = new TtlCache(60_000, new FakeClock());
     const gate = deferred<string>();

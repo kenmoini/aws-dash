@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { EnvLookup } from "../src/env.js";
-import { collectRuntimeInfo, readMemoryLimitBytes } from "../src/runtime/runtime-info.js";
+import { collectRuntimeInfo, readCgroupInfo } from "../src/runtime/runtime-info.js";
 import { FakeRoot } from "./support/fake-root.js";
 
 const roots: FakeRoot[] = [];
@@ -57,7 +57,7 @@ describe("cgroup", () => {
       .write("sys/fs/cgroup/cpu.max", "50000 100000\n").write("sys/fs/cgroup/memory.max", "536870912\n")
       .write("sys/fs/cgroup/memory.current", "1048576\n");
     expect(get(r).cgroup).toEqual({ version: "v2", cpu_limit_cores: 0.5, memory_limit_bytes: 536870912, memory_usage_bytes: 1048576 });
-    expect(readMemoryLimitBytes(r.path)).toBe(536870912);
+    expect(readCgroupInfo(r.path).memory_limit_bytes).toBe(536870912);
   });
   it("v2 unlimited", () => {
     const r = root().write("sys/fs/cgroup/cgroup.controllers", "").write("sys/fs/cgroup/cpu.max", "max 100000").write("sys/fs/cgroup/memory.max", "max");

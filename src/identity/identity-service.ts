@@ -150,7 +150,11 @@ export class IdentityService {
   async get(force = false): Promise<IdentityInfo> {
     const entry = await this.opts.cache.get<IdentityInfo>(IdentityService.KEY, () => this.load(), force);
     // load() never rejects, so value is always present.
-    return entry.value as IdentityInfo;
+    const info = entry.value as IdentityInfo;
+    // Unresolved credentials (no token file yet, misconfigured mode) are shown but not cached for the TTL: the next
+    // request retries, so a pod whose sidecar had not written the token at startup recovers on its own.
+    if (info.error !== null || (info.credentials !== null && info.credentials.error !== null)) this.opts.cache.invalidateAll();
+    return info;
   }
 
   peek(): IdentityInfo | null {

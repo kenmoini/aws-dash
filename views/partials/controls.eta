@@ -2,7 +2,7 @@
 <% const MIB = 1024 * 1024; const baseline = usage === null ? 0 : Math.max(0, usage - s.memory_load.allocated_mib * MIB); %>
 <% const overLimit = limit !== null && s.memory_load.active && s.memory_load.target_mib * MIB + baseline > limit; %>
 <% const controlsTrigger = s.memory_load.phase === "allocating" ? "every 1s" : "every 5s [!document.activeElement || !document.activeElement.closest('#controls')]"; %>
-<section id="controls" class="card" hx-get="/partials/controls" hx-trigger="<%= controlsTrigger %>" hx-swap="outerHTML" hx-sync="this:replace">
+<section id="controls" class="card" hx-get="/partials/controls" hx-trigger="<%= controlsTrigger %>" hx-swap="outerHTML" hx-sync="this:drop">
   <h2>Controls</h2>
   <div id="control-error" class="error" hidden></div>
 <% if (!s.controls_enabled) { %>
@@ -12,20 +12,20 @@
     <div class="control">
       <h3>Liveness <span class="badge <%= s.live ? "ok" : "bad" %>"><%= s.live ? "OK" : "FAILING" %></span></h3>
       <p class="muted">When failing, /healthz/live returns 503; after 3 failed probes the kubelet restarts the container.</p>
-      <button hx-post="/controls/liveness" hx-vals='{"enabled":"<%= s.live ? "false" : "true" %>"}' hx-target="#controls" hx-swap="outerHTML"><%= s.live ? "Fail liveness" : "Restore liveness" %></button>
+      <button hx-post="/controls/liveness" hx-vals='{"enabled":"<%= s.live ? "false" : "true" %>"}' hx-target="#controls" hx-swap="outerHTML" hx-sync="closest #controls:replace"><%= s.live ? "Fail liveness" : "Restore liveness" %></button>
     </div>
     <div class="control">
       <h3>Readiness <span class="badge <%= s.ready ? "ok" : "bad" %>"><%= s.ready ? "OK" : "FAILING" %></span></h3>
       <p class="muted">When failing, /healthz/ready returns 503 and the pod is removed from the Service's endpoints.</p>
-      <button hx-post="/controls/readiness" hx-vals='{"enabled":"<%= s.ready ? "false" : "true" %>"}' hx-target="#controls" hx-swap="outerHTML"><%= s.ready ? "Fail readiness" : "Restore readiness" %></button>
+      <button hx-post="/controls/readiness" hx-vals='{"enabled":"<%= s.ready ? "false" : "true" %>"}' hx-target="#controls" hx-swap="outerHTML" hx-sync="closest #controls:replace"><%= s.ready ? "Fail readiness" : "Restore readiness" %></button>
     </div>
     <div class="control">
       <h3>CPU load <span class="badge <%= s.cpu_load.active ? "warn" : "ok" %>"><%= s.cpu_load.active ? s.cpu_load.workers + " busy" : "idle" %></span></h3>
       <p class="muted">Spins worker threads to drive CPU usage; watch it with kubectl top pod or an HPA.</p>
 <% if (s.cpu_load.active) { %>
-      <button hx-post="/controls/cpu" hx-vals='{"enabled":"false"}' hx-target="#controls" hx-swap="outerHTML">Stop</button>
+      <button hx-post="/controls/cpu" hx-vals='{"enabled":"false"}' hx-target="#controls" hx-swap="outerHTML" hx-sync="closest #controls:replace">Stop</button>
 <% } else { %>
-      <form hx-post="/controls/cpu" hx-target="#controls" hx-swap="outerHTML">
+      <form hx-post="/controls/cpu" hx-target="#controls" hx-swap="outerHTML" hx-sync="closest #controls:replace">
         <input type="hidden" name="enabled" value="true" />
         <label>Workers <input type="number" name="workers" min="1" max="64" value="1" /></label>
         <button type="submit">Start</button>
@@ -43,9 +43,9 @@
       <p class="warning">Target <%= fmt.mib(s.memory_load.target_mib) %><% if (baseline > 0) { %> plus the <%= fmt.bytes(baseline) %> the container already uses<% } %> exceeds the cgroup limit — expect OOMKilled.</p>
 <% } %>
       <div class="progress"><span style="width: <%= Math.min(100, Math.round(100 * s.memory_load.allocated_mib / Math.max(1, s.memory_load.target_mib))) %>%"></span></div>
-      <button hx-post="/controls/memory" hx-vals='{"enabled":"false"}' hx-target="#controls" hx-swap="outerHTML">Release</button>
+      <button hx-post="/controls/memory" hx-vals='{"enabled":"false"}' hx-target="#controls" hx-swap="outerHTML" hx-sync="closest #controls:replace">Release</button>
 <% } else { %>
-      <form hx-post="/controls/memory" hx-target="#controls" hx-swap="outerHTML">
+      <form hx-post="/controls/memory" hx-target="#controls" hx-swap="outerHTML" hx-sync="closest #controls:replace">
         <input type="hidden" name="enabled" value="true" />
         <label>MiB <input type="number" name="mib" min="1" value="256" /></label>
         <button type="submit">Allocate</button>
@@ -55,7 +55,7 @@
     <div class="control">
       <h3>Crash</h3>
       <p class="muted">Exits the process with the given code; Kubernetes restarts it and the restart count goes up.</p>
-      <form hx-post="/controls/crash" hx-target="#crash-result" hx-confirm="Really exit the process?">
+      <form hx-post="/controls/crash" hx-target="#crash-result" hx-confirm="Really exit the process?" hx-sync="closest #controls:replace">
         <label>Exit code <input type="number" name="exit_code" min="0" max="255" value="1" /></label>
         <button type="submit" class="danger">Crash</button>
       </form>

@@ -65,11 +65,6 @@ export function collectRuntimeInfo(root: string, env: EnvLookup): RuntimeInfo {
   };
 }
 
-/** The controls card uses this to warn when a memory-load target exceeds the cgroup limit. */
-export function readMemoryLimitBytes(root: string): number | null {
-  return readCgroup(root).memory_limit_bytes;
-}
-
 function exists(root: string, relative: string): boolean {
   try { return fs.existsSync(path.join(root, relative)); } catch { return false; }
 }

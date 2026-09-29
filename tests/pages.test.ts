@@ -59,7 +59,11 @@ describe("runtime page and partials", () => {
     memory.start(2);
     const allocating = await app.inject({ url: "/partials/controls" });
     expect(allocating.body).toContain('hx-trigger="every 1s"');
-    expect(allocating.body).toContain('hx-sync="this:replace"');
+    expect(allocating.body).toContain('hx-sync="this:drop"');           // a poll never queues behind or aborts another request
+    // every rendered POST (liveness, readiness, one of Start/Stop, one of Allocate/Release, and Crash) replaces an
+    // in-flight poll instead of inheriting the section's "drop", which would silently discard the click
+    expect(allocating.body.match(/hx-sync="closest #controls:replace"/g)?.length).toBe(5);
+    expect(idle.body.match(/hx-sync="closest #controls:replace"/g)?.length).toBe(5);
     await memory.settled();
     memory.stop();
   });
