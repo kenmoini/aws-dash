@@ -1,0 +1,31 @@
+name: Docs check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.md"
+      - "src/routes/**"
+      - "src/config.ts"
+      - "src/metrics/**"
+      - "deploy/**"
+      - "scripts/**"
+  pull_request:
+    paths:
+      - "**/*.md"
+      - "src/routes/**"
+      - "src/config.ts"
+      - "src/metrics/**"
+      - "deploy/**"
+      - "scripts/**"
+  workflow_dispatch: {}
+
+jobs:
+  docs:
+    name: README and deploy docs match the code
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - run: scripts/docs-check.sh
