@@ -49,6 +49,7 @@ spec:
             limits: {cpu: "1", memory: 512Mi}
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities: {drop: [ALL]}
           livenessProbe:
             httpGet: {path: /healthz/live, port: http}

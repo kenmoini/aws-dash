@@ -13,5 +13,6 @@ observations; several are risks the docs currently state as expectations.
 | Projected token readable under arbitrary UID | openshift-native-oidc | pod logs / Identity token section | |
 | `/metrics` credential/token expiry countdowns | any | `curl -s :8080/metrics \| grep aws_dash_credential` | |
 | Static-key baseline (never run with a real key) | kubernetes | AWS tab panels + policy detach/re-attach | |
+| `readOnlyRootFilesystem: true` holds (the app writes nothing to disk) | any | pod Running; no `EROFS` in `kubectl logs` | |
 
 Record the exact strings observed and copy corrections back into the overlay READMEs and `deploy/README.md`.
