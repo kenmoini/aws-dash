@@ -16,8 +16,8 @@ The operator must be installed with its `cluster` CRs (`ZeroTrustWorkloadIdentit
 `SpiffeCSIDriver`, `SpireOIDCDiscoveryProvider`) healthy. AWS needs three things:
 
 1. **RSA signing.** Use `jwtKeyType: rsa-2048` on the `SpireServer` (`operator.openshift.io/v1alpha1`) — the same
-   server can serve azure-dash, which needs RSA too. (Whether IAM also accepts SPIRE's default EC keys is spec §15
-   risk 1 — record what you observe.)
+   server can serve azure-dash, which needs RSA too. (Whether IAM also accepts SPIRE's default EC keys is unverified —
+   record what you observe in `docs/verification/ztwim-phase4.md`.)
 2. **Public discovery endpoint with a publicly trusted certificate.** `SpireOIDCDiscoveryProvider.spec.jwtIssuer` must
    equal `SpireServer.spec.jwtIssuer`; `managedRoute: "true"` creates the Route; point `externalSecretRef` at a
    cert-manager/ACME certificate. STS fetches `/.well-known/openid-configuration` and the JWKS from the public internet.
@@ -98,4 +98,4 @@ the same state as this overlay.
 ## 6. Record what you saw
 
 Fill in `docs/verification/ztwim-phase4.md` (JWT key type accepted, file format, native-sidecar behaviour, socket path)
-and copy corrections back here and into spec §15.
+and copy corrections back here.

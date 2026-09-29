@@ -12,7 +12,7 @@ oc -n aws-dash rollout restart deploy/aws-dash
 oc -n aws-dash get route aws-dash -o jsonpath='https://{.spec.host}{"\n"}'
 ```
 
-For SPIFFE/SPIRE via the Zero Trust Workload Identity Manager use the `ztwim` overlay (Phase 4).
+For SPIFFE/SPIRE via the Zero Trust Workload Identity Manager use the `ztwim` overlay.
 
 The Route publishes the unauthenticated controls (crash, CPU/memory load, liveness/readiness toggles) to anyone who can reach
 the router; set `CONTROLS_ENABLED: "false"` in the ConfigMap (or delete the Route) when the demo is not running.

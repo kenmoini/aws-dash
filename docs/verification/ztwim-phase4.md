@@ -1,7 +1,7 @@
-# Phase 4 live verification on OpenShift + ZTWIM (pending)
+# Live verification on OpenShift + ZTWIM (pending)
 
 Not yet run: this machine has no cluster access. Run on a real cluster with the operator installed and fill in the
-observations; several are spec §15 risks the docs currently state as expectations.
+observations; several are risks the docs currently state as expectations.
 
 | Check | Command / where to look | Observed |
 |---|---|---|
@@ -18,4 +18,4 @@ observations; several are spec §15 risks the docs currently state as expectatio
 | ClusterSPIFFEID without className is honoured (controller manager class / watchClassless) | oc get clusterspiffeid aws-dash-ztwim -o yaml → status | |
 | Where the spire-controller-manager logs live (Deployment vs spire-server StatefulSet container) | oc -n zero-trust-workload-identity-manager get deploy,sts | |
 
-Record the exact strings observed and copy corrections back into `deploy/ztwim/README.md` and spec §15.
+Record the exact strings observed and copy corrections back into `deploy/ztwim/README.md` and `deploy/README.md`.

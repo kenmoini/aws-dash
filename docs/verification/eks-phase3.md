@@ -1,7 +1,7 @@
-# Phase 3 live verification on EKS (pending)
+# Live verification on EKS (pending)
 
 Not yet run: this machine has no usable AWS credentials or cluster access. Run on a real cluster and fill in the
-observations; several are spec §15 risks the docs currently state as expectations.
+observations; several are risks the docs currently state as expectations.
 
 | Check | Overlay | Command / where to look | Observed |
 |---|---|---|---|
@@ -12,6 +12,6 @@ observations; several are spec §15 risks the docs currently state as expectatio
 | Access-check all green, then detach policy → denied | both | Identity tab → Access check → re-run | |
 | Projected token readable under arbitrary UID | openshift-native-oidc | pod logs / Identity token section | |
 | `/metrics` credential/token expiry countdowns | any | `curl -s :8080/metrics \| grep aws_dash_credential` | |
-| Static-key baseline (waived in Phase 2) | kubernetes | AWS tab panels + policy detach/re-attach | |
+| Static-key baseline (never run with a real key) | kubernetes | AWS tab panels + policy detach/re-attach | |
 
-Record the exact strings observed and copy corrections back into the overlay READMEs and spec §15.
+Record the exact strings observed and copy corrections back into the overlay READMEs and `deploy/README.md`.

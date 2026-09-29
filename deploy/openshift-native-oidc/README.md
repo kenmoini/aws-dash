@@ -16,7 +16,7 @@ export OIDC_ISSUER_HOST=${ISSUER#https://}
 - **ROSA / OpenShift installed in STS (manual) mode:** the issuer is public and an IAM OIDC provider for it already exists
   (`aws iam list-open-id-connect-providers`) — reuse it.
 - **Default OCP install:** `serviceAccountIssuer` is empty → `https://kubernetes.default.svc`, which STS cannot reach.
-  Use the ZTWIM overlay (`deploy/ztwim`, Phase 4) instead.
+  Use the ZTWIM overlay (`deploy/ztwim`) instead.
 
 ## 2. OIDC provider (if missing), role, permissions
 
