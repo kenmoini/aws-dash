@@ -10,9 +10,10 @@ ok()   { echo "ok   $1"; }
 fail() { echo "FAIL $1"; status=1; }
 
 # 1. Routes <-> the README "Endpoints" table, both directions. Path params are written {kind} in the README.
-#    Matches `app.get("/x")` and the encapsulated `ctl.post("/controls/x")` alike.
-routes=$(grep -hoE '\.(get|post)\("/[^"]*"' src/routes/*.ts | sed -E 's/.*\("//; s/"$//; s/:kind/{kind}/' | sort -u)
-documented=$(sed -n '/^## Endpoints/,/^## Configuration/p' "$README" | grep -oE '`/[^` ]*`' | tr -d '`' \
+#    Matches any verb on any instance (`app.get("/x")`, the encapsulated `ctl.post("/controls/x")`, `app.put('/y')`).
+q="[\"']"
+routes=$(grep -hoE "\\.(get|post|put|delete|patch|all)\\($q/[^\"']*$q" src/routes/*.ts | sed -E "s/.*\\($q//; s/$q\$//; s/:kind/{kind}/" | sort -u)
+documented=$(sed -n '/^## Endpoints/,/^## Configuration/p' "$README" | grep -oE '`/[^` ]*`' | grep -v '[*]' | tr -d '`' \
   | sed -E 's/\[\?[^]]*\]$//; s/\?[a-z_]+=[A-Za-z0-9]+$//' | sort -u)
 for r in $routes; do
   if grep -qxF -- "$r" <<<"$documented"; then ok "route $r documented"; else fail "route $r is missing from the README Endpoints table"; fi

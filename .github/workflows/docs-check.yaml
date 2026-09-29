@@ -10,6 +10,8 @@ on:
       - "src/metrics/**"
       - "deploy/**"
       - "scripts/**"
+      - "package.json"
+      - ".github/workflows/docs-check.yaml"
   pull_request:
     paths:
       - "**/*.md"
@@ -18,6 +20,8 @@ on:
       - "src/metrics/**"
       - "deploy/**"
       - "scripts/**"
+      - "package.json"
+      - ".github/workflows/docs-check.yaml"
   workflow_dispatch: {}
 
 jobs:

@@ -66,7 +66,7 @@ Published image: `ghcr.io/kenmoini/aws-dash:main` (also `latest`, tags and short
 | GET | `/api/state`, `/api/runtime` | JSON |
 | GET | `/partials/runtime`, `/partials/controls` | htmx fragments |
 | POST | `/controls/liveness`, `/controls/readiness` | form/query `enabled=true\|false` |
-| POST | `/controls/cpu` | `enabled`, `workers` 1–64 (clamped to cores) |
+| POST | `/controls/cpu` | `enabled`, `workers` 1–64 (clamped to `CPU_LOAD_MAX_WORKERS`, default CPU count) |
 | POST | `/controls/memory` | `enabled`, `mib` 1–`MEMORY_LOAD_MAX_MIB`; 409 if already active |
 | POST | `/controls/crash` | `exit_code` 0–255 → 202, exits 500 ms later |
 | GET | `/aws` | AWS page: header card + 8 lazy panels |
@@ -86,9 +86,10 @@ Published image: `ghcr.io/kenmoini/aws-dash:main` (also `latest`, tags and short
 | GET | `/partials/k8s` | htmx fragment |
 | GET | `/metrics` | Prometheus text; 404 when `METRICS_ENABLED=false` |
 
-Requests with `HX-Request: true` get HTML fragments; everything else gets JSON. `refresh=true` (or `1`) bypasses the
+`/controls/*` answer with the Controls fragment when the request carries `HX-Request: true` (what htmx sends) and with the
+state JSON otherwise; `/partials/*` are always HTML and `/api/*` always JSON. `refresh=true` (or `1`) bypasses the
 cache for that call. Bad input → 422 `{"detail":…}`; all controls → 403 `{"detail":"controls are disabled (CONTROLS_ENABLED=false)"}`
-when `CONTROLS_ENABLED=false`. Unknown paths → 404 `{"detail":"not found: METHOD /path"}`. Every cloud or cluster failure
+when `CONTROLS_ENABLED=false`. Unknown paths → 404 `{"detail":"not found: METHOD /path"}`; an unknown `{kind}` → 404 `{"detail":"unknown kind '…'"}`. Every cloud or cluster failure
 is a 200 whose body carries an `error`/`reason` field — the cards render it; nothing returns a 500 for a failed lookup.
 
 ## Configuration
@@ -131,8 +132,8 @@ missing variable is reported on the Identity card and the AWS panels instead of 
 |---|---|---|---|
 | `static` | `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are both set | `fromEnv` | long-lived IAM user access key (`AKIA…`) |
 | `profile` | `AWS_PROFILE` is set | `fromIni` | shared config profile |
-| `web-identity` | `AWS_WEB_IDENTITY_TOKEN_FILE` and `AWS_ROLE_ARN` are both set | `fromTokenFile` → `sts:AssumeRoleWithWebIdentity` | EKS IRSA / Kubernetes projected service-account token / SPIFFE JWT-SVID (spiffe-helper), from the token's `iss`/`sub` |
-| `pod-identity` | `AWS_CONTAINER_CREDENTIALS_FULL_URI` or `AWS_CONTAINER_CREDENTIALS_RELATIVE_URI` is set | `fromHttp` (container credentials endpoint) | EKS Pod Identity / ECS task role |
+| `web-identity` | `AWS_WEB_IDENTITY_TOKEN_FILE` and `AWS_ROLE_ARN` are both set | `fromTokenFile` → `sts:AssumeRoleWithWebIdentity` | EKS IRSA / Kubernetes projected service-account token / SPIFFE JWT-SVID (spiffe-helper), from the token's `iss`/`sub`; `OIDC token file` for any other issuer |
+| `pod-identity` | `AWS_CONTAINER_CREDENTIALS_FULL_URI` or `AWS_CONTAINER_CREDENTIALS_RELATIVE_URI` is set | `fromHttp` (container credentials endpoint) | EKS Pod Identity / ECS task role; `container credentials endpoint` for any other URI |
 | `imds` | none of the above matched (the fallback) | `fromInstanceMetadata` (the node's/instance's role) | EC2 instance role (IMDS) |
 
 ## Metrics
@@ -147,13 +148,13 @@ never calls AWS, IMDS, the SPIRE agent or the Kubernetes API.
 | `aws_dash_probe_live`, `aws_dash_probe_ready` | gauge | | 1 while the probe is enabled via the controls |
 | `aws_dash_cpu_load_workers` | gauge | | CPU-burner worker threads running |
 | `aws_dash_memory_load_allocated_bytes`, `aws_dash_memory_load_target_bytes` | gauge | | memory control progress |
-| `aws_dash_cgroup_memory_limit_bytes`, `aws_dash_cgroup_memory_usage_bytes`, `aws_dash_cgroup_cpu_limit_cores` | gauge | | from the container's cgroup; -1 when unlimited or unknown |
+| `aws_dash_cgroup_memory_limit_bytes`, `aws_dash_cgroup_memory_usage_bytes`, `aws_dash_cgroup_cpu_limit_cores` | gauge | | from the container's cgroup; the two limits read -1 when unlimited or unknown, usage reads -1 when unknown |
 | `aws_dash_inventory_fetch_duration_seconds` | histogram | `kind` | AWS panel fetches |
 | `aws_dash_inventory_fetch_errors_total` | counter | `kind` | failed fetches |
 | `aws_dash_inventory_last_success_timestamp_seconds` | gauge | `kind` | last good fetch per kind |
 | `aws_dash_http_requests_total` | counter | `method`, `route`, `status` | every response, by route pattern |
 | `aws_dash_credential_expiry_seconds` | gauge | `mode` | seconds until the AWS credentials actually in use expire; fed by a tap inside the shared credential provider, so any panel's resolution updates it; -1 until the first resolution, and for long-lived keys with no expiry |
-| `aws_dash_token_file_expiry_seconds` | gauge | | seconds until the web-identity token file expires, as of the last Identity-tab load |
+| `aws_dash_token_file_expiry_seconds` | gauge | | seconds until the web-identity token file expires, as of the last Identity-tab load; -1 before the first load or when the mode has no token file |
 | `aws_dash_credential_resolutions_total` | counter | `mode`, `result` | real credential resolutions (a memoized cache hit does not count) |
 | `aws_dash_access_check_allowed` | gauge | `action` | 1 when the last access check allowed the action, else 0 |
 
@@ -197,7 +198,9 @@ does not install by default.
 **Act 2 — least privilege, live (AWS tab)**
 
 6. Open **AWS**: each panel lists resources or an explicit hint. Scrape `/metrics` (`curl -s localhost:8080/metrics | grep aws_dash_`) meanwhile.
-7. Detach the read-only policy from the principal, click **Refresh all** → every panel except Account shows the
+7. Detach the read-only policy — `aws iam detach-user-policy --user-name aws-dash --policy-arn arn:aws:iam::<account>:policy/aws-dash-readonly`
+   on the static-key overlays, `aws iam detach-role-policy --role-name aws-dash-<overlay> --policy-arn …` on the
+   workload-identity ones — then click **Refresh all** → every panel except Account shows the
    `AccessDenied` hint but keeps its last data (`sts:GetCallerIdentity` needs no permission); re-attach to recover.
 8. Open **Identity → Access check**, click **re-run** while the policy is detached: every row except `sts:GetCallerIdentity`
    flips to *denied* (`iam:GetRole` reads *skipped* when the caller is an IAM user rather than an assumed role); re-attach and
