@@ -11,7 +11,7 @@ RUN npm run build \
  && npm prune --omit=dev --omit=optional --ignore-scripts \
  && chmod -R g=u /opt/app-root/src
 
-FROM registry.access.redhat.com/ubi10/nodejs-24-minimal:10.2-1788245909
+FROM registry.access.redhat.com/ubi10/nodejs-24-minimal:1792484284
 LABEL org.opencontainers.image.title="aws-dash" \
       org.opencontainers.image.description="AWS workload identity demo dashboard for EKS, Kubernetes and OpenShift (ZTWIM)" \
       org.opencontainers.image.source="https://github.com/kenmoini/aws-dash" \
