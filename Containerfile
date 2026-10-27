@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Build stage runs on the build host's architecture; node_modules is pure JS (no optional native
 # addons) so the tree copied into the final stage is architecture-independent.
-FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi10/nodejs-24:10.2-1779929679 AS build
+FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi10/nodejs-24:1792840147 AS build
 WORKDIR /opt/app-root/src
 COPY --chown=1001:0 package.json package-lock.json .npmrc ./
 RUN npm ci --ignore-scripts
